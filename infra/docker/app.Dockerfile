@@ -14,10 +14,7 @@ ARG NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
 RUN bunx next telemetry disable
-RUN cd packages/db && bunx prisma generate && cd ../..
-RUN cp -rf packages/db/prisma/node_modules/@prisma/client/* node_modules/@prisma/client/ && \
-    mkdir -p node_modules/.prisma/client && \
-    cp -rf packages/db/prisma/node_modules/.prisma/client/* node_modules/.prisma/client/
+RUN bunx prisma generate --schema=packages/db/prisma/schema.prisma
 RUN bunx turbo build --filter=@oho/web
 
 # ── Stage 2: Production (Node — stable runtime) ──
@@ -33,12 +30,12 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/ws ./node_modules/ws
 
 USER nextjs
 
-EXPOSE 3000
+EXPOSE 3000 3001
 ENV PORT=3000
+ENV WS_PORT=3001
 ENV HOSTNAME="0.0.0.0"
 ENV NODE_ENV=production
 

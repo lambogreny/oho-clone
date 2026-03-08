@@ -1,14 +1,10 @@
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import type { NextConfig } from 'next'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const nextConfig: NextConfig = {
 	output: 'standalone',
-	outputFileTracingRoot: path.join(__dirname, '../../'),
+	outputFileTracingRoot: import.meta.dirname ? `${import.meta.dirname}/../..` : undefined,
 	transpilePackages: ['@oho/api', '@oho/db'],
-	serverExternalPackages: ['ws', '@prisma/client', 'prisma'],
+	serverExternalPackages: ['ws', '@prisma/client', 'prisma', 'bcryptjs'],
 	typescript: {
 		ignoreBuildErrors: true,
 	},
