@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
 	output: 'standalone',
 	transpilePackages: ['@oho/api', '@oho/db'],
 	compiler: {
-		removeConsole: process.env.NODE_ENV === 'production',
+		removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
 	},
 }
 
