@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useSocketEvent } from '@/lib/socket'
 import { trpc } from '@/lib/trpc/client'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
@@ -87,6 +88,7 @@ export function ConversationList() {
 	const [activeTab, setActiveTab] = useState<FilterTab>('all')
 	const { activeConversationId, setActiveConversation } = useConversationStore()
 	const user = useAuthStore((s) => s.user)
+	const utils = trpc.useUtils()
 
 	const { data, isLoading, error } = trpc.conversation.list.useQuery(
 		{
@@ -95,8 +97,21 @@ export function ConversationList() {
 			...(activeTab === 'unassigned' ? { assigneeId: undefined } : {}),
 			limit: 50,
 		},
-		{ refetchInterval: 10_000 },
+		{ refetchInterval: 30_000 },
 	)
+
+	// Real-time: refresh conversation list on WebSocket events
+	useSocketEvent('conversation:update', () => {
+		utils.conversation.list.invalidate()
+	})
+
+	useSocketEvent('conversation:new', () => {
+		utils.conversation.list.invalidate()
+	})
+
+	useSocketEvent('message:new', () => {
+		utils.conversation.list.invalidate()
+	})
 
 	const conversations = data?.items ?? []
 

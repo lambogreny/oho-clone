@@ -17,6 +17,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { useSocketConnection } from '@/lib/socket'
 import { trpc } from '@/lib/trpc/client'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
@@ -49,6 +50,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 	const router = useRouter()
 	const [collapsed, setCollapsed] = useState(false)
 	const { user, clearAuth } = useAuthStore()
+
+	// Connect WebSocket when dashboard mounts
+	useSocketConnection()
 
 	const signOut = trpc.auth.signOut.useMutation({
 		onSuccess: () => {

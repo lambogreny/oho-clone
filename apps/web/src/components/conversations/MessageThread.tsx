@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useConversationRoom, useSocketEvent } from '@/lib/socket'
 import { trpc } from '@/lib/trpc/client'
 import { cn } from '@/lib/utils'
 import { useConversationStore } from '@/stores/conversation'
@@ -73,8 +74,25 @@ export function MessageThread() {
 	// Fetch messages
 	const { data: messagesData, isLoading: messagesLoading } = trpc.message.list.useQuery(
 		{ conversationId: activeConversationId!, limit: 100 },
-		{ enabled: !!activeConversationId, refetchInterval: 5_000 },
+		{ enabled: !!activeConversationId, refetchInterval: 30_000 },
 	)
+
+	// Join conversation room for real-time events
+	useConversationRoom(activeConversationId)
+
+	// Real-time: new messages via WebSocket
+	useSocketEvent('message:new', (data) => {
+		if (data.conversationId === activeConversationId) {
+			utils.message.list.invalidate({ conversationId: activeConversationId! })
+		}
+	})
+
+	// Real-time: message status updates
+	useSocketEvent('message:status', () => {
+		if (activeConversationId) {
+			utils.message.list.invalidate({ conversationId: activeConversationId })
+		}
+	})
 
 	// Send message mutation
 	const sendMessage = trpc.message.send.useMutation({
