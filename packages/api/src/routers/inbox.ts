@@ -87,7 +87,7 @@ export const inboxRouter = router({
 				where: { id },
 				data: {
 					...rest,
-					...(channelConfig && {
+					...(channelConfig !== undefined && {
 						channelConfig: channelConfig as Prisma.InputJsonValue,
 					}),
 				},

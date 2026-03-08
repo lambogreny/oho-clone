@@ -94,6 +94,35 @@ export const conversationRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
+			// Verify inbox and contact belong to the same account
+			const [inbox, contact] = await Promise.all([
+				ctx.db.inbox.findFirst({
+					where: { id: input.inboxId, accountId: ctx.accountId },
+					select: { id: true },
+				}),
+				ctx.db.contact.findFirst({
+					where: { id: input.contactId, accountId: ctx.accountId },
+					select: { id: true },
+				}),
+			])
+			if (!inbox) {
+				throw new TRPCError({ code: 'NOT_FOUND', message: 'Inbox not found' })
+			}
+			if (!contact) {
+				throw new TRPCError({ code: 'NOT_FOUND', message: 'Contact not found' })
+			}
+
+			// Verify assignee belongs to the same account
+			if (input.assigneeId) {
+				const assignee = await ctx.db.user.findFirst({
+					where: { id: input.assigneeId, accountId: ctx.accountId },
+					select: { id: true },
+				})
+				if (!assignee) {
+					throw new TRPCError({ code: 'NOT_FOUND', message: 'Assignee not found' })
+				}
+			}
+
 			return ctx.db.conversation.create({
 				data: {
 					accountId: ctx.accountId,
@@ -169,6 +198,17 @@ export const conversationRouter = router({
 			})
 			if (!existing) {
 				throw new TRPCError({ code: 'NOT_FOUND', message: 'Conversation not found' })
+			}
+
+			// Verify assignee belongs to the same account
+			if (input.assigneeId) {
+				const assignee = await ctx.db.user.findFirst({
+					where: { id: input.assigneeId, accountId: ctx.accountId },
+					select: { id: true },
+				})
+				if (!assignee) {
+					throw new TRPCError({ code: 'NOT_FOUND', message: 'Assignee not found' })
+				}
 			}
 
 			const updated = await ctx.db.conversation.update({

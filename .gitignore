@@ -12,9 +12,9 @@ generated/
 # Environment
 .env
 .env.local
+.env.development
 .env.production
 !.env.example
-!.env.development
 
 # IDE
 .vscode/

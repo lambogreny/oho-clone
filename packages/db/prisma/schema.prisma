@@ -114,8 +114,6 @@ model User {
   sessions              Session[]
   assignedConversations  Conversation[] @relation("ConversationAssignee")
   teamMemberships       TeamMember[]
-  messages              Message[]      @relation("AgentMessages")
-
   @@map("users")
 }
 
@@ -234,7 +232,6 @@ model Message {
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   attachments  Attachment[]
-  agent        User?        @relation("AgentMessages", fields: [senderId], references: [id], onDelete: Cascade, map: "messages_agent_fk")
 
   @@index([conversationId, createdAt])
   @@map("messages")
