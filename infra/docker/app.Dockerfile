@@ -21,9 +21,14 @@ RUN bunx turbo build --filter=@oho/web
 FROM node:22-slim AS production
 WORKDIR /app
 
+RUN apt-get update -qq && \
+    apt-get install -y -qq openssl wget && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
+# With outputFileTracingRoot set to monorepo root, standalone includes full structure
 COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
