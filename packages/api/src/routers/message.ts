@@ -5,6 +5,42 @@ import { pushMessage } from '../libs/line'
 import { protectedProcedure, router } from '../trpc'
 import { emitNewMessage } from '../ws'
 
+async function _deliverToLine(
+	db: typeof prisma,
+	conversationId: string,
+	content: string,
+	messageId: string,
+): Promise<void> {
+	// Get conversation → contact → ContactInbox (LINE sourceId) + inbox config
+	const conversation = await db.conversation.findUnique({
+		where: { id: conversationId },
+		select: {
+			contactId: true,
+			inboxId: true,
+			inbox: { select: { channelConfig: true } },
+		},
+	})
+	if (!conversation) return
+
+	const config = conversation.inbox.channelConfig as Record<string, string> | null
+	const accessToken = config?.channelAccessToken
+	if (!accessToken) return
+
+	const contactInbox = await db.contactInbox.findFirst({
+		where: { contactId: conversation.contactId, inboxId: conversation.inboxId },
+		select: { sourceId: true },
+	})
+	if (!contactInbox?.sourceId) return
+
+	await pushMessage(contactInbox.sourceId, [{ type: 'text', text: content }], accessToken)
+
+	// Mark as delivered
+	await db.message.update({
+		where: { id: messageId },
+		data: { status: 'DELIVERED' },
+	})
+}
+
 export const messageRouter = router({
 	list: protectedProcedure
 		.input(
@@ -69,6 +105,7 @@ export const messageRouter = router({
 					id: true,
 					contactId: true,
 					inboxId: true,
+					firstResponseAt: true,
 					inbox: { select: { channelType: true, channelConfig: true } },
 				},
 			})
@@ -95,7 +132,10 @@ export const messageRouter = router({
 				}),
 				ctx.db.conversation.update({
 					where: { id: input.conversationId },
-					data: { lastMessageAt: now },
+					data: {
+						lastMessageAt: now,
+						...(!conversation.firstResponseAt && { firstResponseAt: now }),
+					},
 				}),
 			])
 
