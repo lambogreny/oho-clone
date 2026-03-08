@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { protectedProcedure, router } from '../trpc'
+import { emitNewMessage } from '../ws'
 
 export const messageRouter = router({
 	list: protectedProcedure
@@ -68,6 +69,7 @@ export const messageRouter = router({
 				throw new TRPCError({ code: 'NOT_FOUND', message: 'Conversation not found' })
 			}
 
+			const now = new Date()
 			const [message] = await ctx.db.$transaction([
 				ctx.db.message.create({
 					data: {
@@ -86,9 +88,28 @@ export const messageRouter = router({
 				}),
 				ctx.db.conversation.update({
 					where: { id: input.conversationId },
-					data: { lastMessageAt: new Date() },
+					data: { lastMessageAt: now },
 				}),
 			])
+
+			// Emit to WebSocket clients
+			emitNewMessage(ctx.accountId, input.conversationId, {
+				id: message.id,
+				conversationId: message.conversationId,
+				content: message.content,
+				contentType: message.contentType,
+				direction: message.direction,
+				senderType: message.senderType,
+				senderId: message.senderId,
+				status: message.status,
+				createdAt: message.createdAt.toISOString(),
+				attachments: message.attachments.map((a) => ({
+					id: a.id,
+					type: a.type,
+					url: a.url,
+					fileName: a.fileName,
+				})),
+			})
 
 			return message
 		}),
@@ -101,6 +122,18 @@ export const messageRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
+			// Verify message belongs to a conversation in user's account
+			const message = await ctx.db.message.findFirst({
+				where: {
+					id: input.id,
+					conversation: { accountId: ctx.accountId },
+				},
+				select: { id: true },
+			})
+			if (!message) {
+				throw new TRPCError({ code: 'NOT_FOUND', message: 'Message not found' })
+			}
+
 			return ctx.db.message.update({
 				where: { id: input.id },
 				data: { status: input.status },

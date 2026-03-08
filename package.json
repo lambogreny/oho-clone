@@ -35,5 +35,9 @@
 		"*.{ts,tsx,js,jsx,json,css}": [
 			"bunx biome check --write --unsafe"
 		]
+	},
+	"dependencies": {
+		"@types/node": "^25.3.5",
+		"socket.io": "^4.8.3"
 	}
 }
