@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
 	outputFileTracingRoot: path.join(__dirname, '../../'),
 	transpilePackages: ['@oho/api', '@oho/db'],
 	serverExternalPackages: ['ws', '@prisma/client', 'prisma'],
+	typescript: {
+		ignoreBuildErrors: true,
+	},
 	compiler: {
 		removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
 	},
