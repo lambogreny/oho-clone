@@ -8,22 +8,13 @@ import {
 } from '../libs/line'
 import { emitNewMessage } from '../ws'
 
-// ─── Types ───────────────────────────────────────────────────
-
-interface WebhookResult {
-	ok: boolean
-	processed: number
-	errors: string[]
-}
-
 // ─── Main Handler ────────────────────────────────────────────
 
 export async function handleLineWebhook(
 	rawBody: string,
 	signature: string,
 	inboxId: string,
-): Promise<WebhookResult> {
-	// Lookup inbox + channel config
+): Promise<{ ok: boolean; processed: number; errors: string[] }> {
 	const inbox = await db.inbox.findUnique({
 		where: { id: inboxId },
 		select: {
@@ -47,60 +38,63 @@ export async function handleLineWebhook(
 		return { ok: false, processed: 0, errors: ['LINE channel not configured'] }
 	}
 
-	// Verify signature
 	if (!verifyLineSignature(rawBody, signature, channelSecret)) {
 		return { ok: false, processed: 0, errors: ['Invalid signature'] }
 	}
 
-	// Parse body
 	const body: LineWebhookBody = JSON.parse(rawBody)
 	const errors: string[] = []
 	let processed = 0
 
 	for (const event of body.events) {
 		try {
-			if (event.type === 'message' && event.message?.type === 'text') {
-				await processTextMessage(event, inbox.id, inbox.accountId, accessToken)
+			if (event.type === 'message' && event.message) {
+				await processMessage(event, inbox.id, inbox.accountId, accessToken)
+				processed++
+			} else if (event.type === 'follow') {
+				await processFollow(event, inbox.id, inbox.accountId, accessToken)
 				processed++
 			}
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : 'Unknown error'
-			errors.push(msg)
+			errors.push(err instanceof Error ? err.message : 'Unknown error')
 		}
 	}
 
 	return { ok: true, processed, errors }
 }
 
-// ─── Process Text Message ────────────────────────────────────
+// ─── Process Message ─────────────────────────────────────────
 
-async function processTextMessage(
+async function processMessage(
 	event: LineWebhookEvent,
 	inboxId: string,
 	accountId: string,
 	accessToken: string,
 ): Promise<void> {
 	const lineUserId = event.source.userId
-	const text = event.message?.text ?? ''
+	const text = event.message?.text ?? `[${event.message?.type ?? 'unknown'}]`
 	const messageId = event.message?.id ?? ''
 
-	// Find or create contact
+	// Deduplicate by external ID
+	const existing = await db.message.findFirst({
+		where: { externalId: messageId },
+		select: { id: true },
+	})
+	if (existing) return
+
 	const contact = await findOrCreateContact(lineUserId, accountId, accessToken)
 
-	// Find or create ContactInbox link
-	await db.contactInbox.upsert({
-		where: {
-			inboxId_sourceId: { inboxId, sourceId: lineUserId },
-		},
-		update: {},
-		create: {
-			contactId: contact.id,
-			inboxId,
-			sourceId: lineUserId,
-		},
+	// Ensure ContactInbox link
+	const existingLink = await db.contactInbox.findFirst({
+		where: { contactId: contact.id, inboxId },
 	})
+	if (!existingLink) {
+		await db.contactInbox.create({
+			data: { contactId: contact.id, inboxId, sourceId: lineUserId },
+		})
+	}
 
-	// Find open conversation or create new one
+	// Find or create conversation
 	let conversation = await db.conversation.findFirst({
 		where: {
 			accountId,
@@ -108,7 +102,7 @@ async function processTextMessage(
 			inboxId,
 			status: { in: ['OPEN', 'PENDING'] },
 		},
-		select: { id: true },
+		select: { id: true, status: true },
 	})
 
 	if (!conversation) {
@@ -122,7 +116,7 @@ async function processTextMessage(
 			},
 		})
 
-		// Emit new conversation to dashboard
+		// Emit new conversation
 		const io = (await import('../ws')).getSocketServer()
 		if (io) {
 			io.to(`account:${accountId}`).emit('conversation:new', {
@@ -134,12 +128,24 @@ async function processTextMessage(
 		}
 	}
 
+	// Map content type
+	const contentType =
+		event.message?.type === 'text'
+			? 'TEXT'
+			: event.message?.type === 'image'
+				? 'IMAGE'
+				: event.message?.type === 'video'
+					? 'VIDEO'
+					: event.message?.type === 'audio'
+						? 'AUDIO'
+						: 'TEXT'
+
 	// Create message
 	const message = await db.message.create({
 		data: {
 			conversationId: conversation.id,
 			content: text,
-			contentType: 'TEXT',
+			contentType,
 			direction: 'INBOUND',
 			senderType: 'CONTACT',
 			senderId: contact.id,
@@ -154,6 +160,7 @@ async function processTextMessage(
 		data: {
 			lastMessageAt: new Date(),
 			unreadCount: { increment: 1 },
+			...(conversation.status === 'RESOLVED' && { status: 'OPEN' }),
 		},
 	})
 
@@ -172,23 +179,37 @@ async function processTextMessage(
 	})
 }
 
+// ─── Process Follow ──────────────────────────────────────────
+
+async function processFollow(
+	event: LineWebhookEvent,
+	inboxId: string,
+	accountId: string,
+	accessToken: string,
+): Promise<void> {
+	const lineUserId = event.source.userId
+	const contact = await findOrCreateContact(lineUserId, accountId, accessToken)
+
+	const existingLink = await db.contactInbox.findFirst({
+		where: { contactId: contact.id, inboxId },
+	})
+	if (!existingLink) {
+		await db.contactInbox.create({
+			data: { contactId: contact.id, inboxId, sourceId: lineUserId },
+		})
+	}
+}
+
 // ─── Find or Create Contact ──────────────────────────────────
 
 async function findOrCreateContact(lineUserId: string, accountId: string, accessToken: string) {
-	// Check if contact already exists via ContactInbox sourceId
 	const existing = await db.contactInbox.findFirst({
-		where: {
-			sourceId: lineUserId,
-			inbox: { accountId },
-		},
+		where: { sourceId: lineUserId, inbox: { accountId } },
 		include: { contact: true },
 	})
 
-	if (existing) {
-		return existing.contact
-	}
+	if (existing) return existing.contact
 
-	// Fetch LINE profile
 	let name = `LINE User ${lineUserId.slice(-6)}`
 	let avatarUrl: string | null = null
 
@@ -197,7 +218,7 @@ async function findOrCreateContact(lineUserId: string, accountId: string, access
 		name = profile.displayName
 		avatarUrl = profile.pictureUrl ?? null
 	} catch {
-		// Use fallback name if profile fetch fails
+		// Use fallback name
 	}
 
 	return db.contact.create({

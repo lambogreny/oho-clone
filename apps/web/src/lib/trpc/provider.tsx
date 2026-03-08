@@ -11,6 +11,11 @@ function getBaseUrl() {
 	return `http://localhost:${process.env.PORT ?? 3000}`
 }
 
+function getAuthToken() {
+	if (typeof window === 'undefined') return null
+	return localStorage.getItem('auth_token')
+}
+
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
 	const [queryClient] = useState(
 		() =>
@@ -31,10 +36,8 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
 					url: `${getBaseUrl()}/api/trpc`,
 					transformer: superjson,
 					headers() {
-						const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-						return {
-							...(token ? { Authorization: `Bearer ${token}` } : {}),
-						}
+						const token = getAuthToken()
+						return token ? { Authorization: `Bearer ${token}` } : {}
 					},
 				}),
 			],

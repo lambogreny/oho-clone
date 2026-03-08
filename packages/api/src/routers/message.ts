@@ -5,42 +5,6 @@ import { pushMessage } from '../libs/line'
 import { protectedProcedure, router } from '../trpc'
 import { emitNewMessage } from '../ws'
 
-async function deliverToLine(
-	db: typeof prisma,
-	conversationId: string,
-	content: string,
-	messageId: string,
-): Promise<void> {
-	// Get conversation → contact → ContactInbox (LINE sourceId) + inbox config
-	const conversation = await db.conversation.findUnique({
-		where: { id: conversationId },
-		select: {
-			contactId: true,
-			inboxId: true,
-			inbox: { select: { channelConfig: true } },
-		},
-	})
-	if (!conversation) return
-
-	const config = conversation.inbox.channelConfig as Record<string, string> | null
-	const accessToken = config?.channelAccessToken
-	if (!accessToken) return
-
-	const contactInbox = await db.contactInbox.findFirst({
-		where: { contactId: conversation.contactId, inboxId: conversation.inboxId },
-		select: { sourceId: true },
-	})
-	if (!contactInbox?.sourceId) return
-
-	await pushMessage(contactInbox.sourceId, [{ type: 'text', text: content }], accessToken)
-
-	// Mark as delivered
-	await db.message.update({
-		where: { id: messageId },
-		data: { status: 'DELIVERED' },
-	})
-}
-
 export const messageRouter = router({
 	list: protectedProcedure
 		.input(
@@ -103,8 +67,9 @@ export const messageRouter = router({
 				where: { id: input.conversationId, accountId: ctx.accountId },
 				select: {
 					id: true,
+					contactId: true,
 					inboxId: true,
-					inbox: { select: { channelType: true } },
+					inbox: { select: { channelType: true, channelConfig: true } },
 				},
 			})
 			if (!conversation) {
@@ -153,14 +118,28 @@ export const messageRouter = router({
 				})),
 			})
 
-			// Deliver to LINE (fire-and-forget)
+			// Deliver to LINE channel (fire-and-forget)
 			if (conversation.inbox.channelType === 'LINE') {
-				deliverToLine(ctx.db, input.conversationId, input.content, message.id).catch((err) => {
-					console.error('[LINE] Failed to send:', err)
-					ctx.db.message
-						.update({ where: { id: message.id }, data: { status: 'FAILED' } })
-						.catch(() => {})
-				})
+				const config = conversation.inbox.channelConfig as Record<string, string> | null
+				const accessToken = config?.channelAccessToken
+				if (accessToken) {
+					const contactInbox = await ctx.db.contactInbox.findFirst({
+						where: { contactId: conversation.contactId, inboxId: conversation.inboxId },
+						select: { sourceId: true },
+					})
+					if (contactInbox?.sourceId) {
+						pushMessage(
+							contactInbox.sourceId,
+							[{ type: 'text', text: input.content }],
+							accessToken,
+						).catch((err) => {
+							console.error('[LINE] Failed to send:', err)
+							ctx.db.message
+								.update({ where: { id: message.id }, data: { status: 'FAILED' } })
+								.catch(() => {})
+						})
+					}
+				}
 			}
 
 			return message

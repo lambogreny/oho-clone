@@ -5,17 +5,21 @@ import {
 	Bot,
 	ChevronLeft,
 	ChevronRight,
+	LogOut,
 	MessageSquare,
 	Send,
 	Settings,
 	Users,
 } from 'lucide-react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { trpc } from '@/lib/trpc/client'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth'
 
 interface NavItem {
 	href: string
@@ -25,7 +29,7 @@ interface NavItem {
 }
 
 const mainNav: NavItem[] = [
-	{ href: '/app', icon: MessageSquare, label: 'แชท', badge: 6 },
+	{ href: '/app', icon: MessageSquare, label: 'แชท' },
 	{ href: '/app/contacts', icon: Users, label: 'รายชื่อ' },
 	{ href: '/app/broadcast', icon: Send, label: 'Broadcast' },
 	{ href: '/app/chatbot', icon: Bot, label: 'Chatbot' },
@@ -34,9 +38,29 @@ const mainNav: NavItem[] = [
 
 const bottomNav: NavItem[] = [{ href: '/app/settings', icon: Settings, label: 'ตั้งค่า' }]
 
+function getInitials(name: string): string {
+	const parts = name.trim().split(/\s+/)
+	if (parts.length >= 2) return `${parts[0]?.[0] ?? ''}${parts[1]?.[0] ?? ''}`
+	return name.slice(0, 2)
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname()
+	const router = useRouter()
 	const [collapsed, setCollapsed] = useState(false)
+	const { user, clearAuth } = useAuthStore()
+
+	const signOut = trpc.auth.signOut.useMutation({
+		onSuccess: () => {
+			clearAuth()
+			toast.success('ออกจากระบบสำเร็จ')
+			router.push('/login')
+		},
+		onError: () => {
+			clearAuth()
+			router.push('/login')
+		},
+	})
 
 	const isActive = (href: string) =>
 		href === '/app' ? pathname === '/app' : pathname.startsWith(href)
@@ -80,6 +104,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 		)
 	}
 
+	const displayName = user?.displayName ?? user?.name ?? 'User'
+	const initials = getInitials(displayName)
+	const role = user?.role ?? 'Agent'
+
 	return (
 		<div className="flex h-screen overflow-hidden bg-muted/30">
 			{/* Sidebar */}
@@ -111,11 +139,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 				<div className={cn('border-t border-white/10 py-3 space-y-1', collapsed ? 'px-2' : 'px-3')}>
 					{bottomNav.map(renderNavItem)}
 
+					{/* Sign out */}
+					<button
+						type="button"
+						onClick={() => signOut.mutate()}
+						disabled={signOut.isPending}
+						className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground hover:text-white hover:bg-sidebar-hover transition-all duration-150 w-full cursor-pointer"
+					>
+						<LogOut className="w-5 h-5 shrink-0" />
+						{!collapsed && <span className="truncate">ออกจากระบบ</span>}
+					</button>
+
 					{/* Collapse toggle */}
 					<button
 						type="button"
 						onClick={() => setCollapsed(!collapsed)}
-						className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground hover:text-white hover:bg-sidebar-hover transition-all duration-150 w-full"
+						className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground hover:text-white hover:bg-sidebar-hover transition-all duration-150 w-full cursor-pointer"
 						aria-label={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
 					>
 						{collapsed ? (
@@ -136,12 +175,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 						)}
 					>
 						<Avatar className="w-8 h-8">
-							<AvatarFallback className="bg-gray-600 text-white text-xs">อม</AvatarFallback>
+							<AvatarFallback className="bg-gray-600 text-white text-xs">{initials}</AvatarFallback>
 						</Avatar>
 						{!collapsed && (
 							<div className="flex-1 min-w-0">
-								<div className="text-xs font-medium text-white truncate">อมรเทพ</div>
-								<div className="text-[10px] text-sidebar-foreground truncate">Admin</div>
+								<div className="text-xs font-medium text-white truncate">{displayName}</div>
+								<div className="text-[10px] text-sidebar-foreground truncate">{role}</div>
 							</div>
 						)}
 					</div>

@@ -6,12 +6,15 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { trpc } from '@/lib/trpc/client'
+import { useAuthStore } from '@/stores/auth'
 
 const registerSchema = z
 	.object({
@@ -47,11 +50,27 @@ const trialBenefits = [
 export default function RegisterPage() {
 	const router = useRouter()
 	const [showPassword, setShowPassword] = useState(false)
+	const setAuth = useAuthStore((s) => s.setAuth)
+
+	const registerMutation = trpc.auth.register.useMutation({
+		onSuccess: (data) => {
+			setAuth(data.token, data.user)
+			toast.success('สร้างบัญชีสำเร็จ ยินดีต้อนรับ!')
+			router.push('/app')
+		},
+		onError: (error) => {
+			if (error.data?.code === 'CONFLICT') {
+				toast.error('อีเมลนี้ถูกใช้งานแล้ว')
+			} else {
+				toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')
+			}
+		},
+	})
 
 	const {
 		register,
 		handleSubmit,
-		formState: { errors, isSubmitting },
+		formState: { errors },
 	} = useForm<RegisterFormValues>({
 		resolver: zodResolver(registerSchema),
 		defaultValues: {
@@ -64,10 +83,13 @@ export default function RegisterPage() {
 		},
 	})
 
-	const onSubmit = async (_data: RegisterFormValues) => {
-		// TODO: Implement registration via tRPC
-		await new Promise((resolve) => setTimeout(resolve, 1500))
-		router.push('/app')
+	const onSubmit = (data: RegisterFormValues) => {
+		registerMutation.mutate({
+			accountName: data.companyName,
+			name: data.fullName,
+			email: data.email,
+			password: data.password,
+		})
 	}
 
 	return (
@@ -200,8 +222,8 @@ export default function RegisterPage() {
 						</div>
 
 						{/* Submit */}
-						<Button type="submit" className="w-full" disabled={isSubmitting}>
-							{isSubmitting ? (
+						<Button type="submit" className="w-full" disabled={registerMutation.isPending}>
+							{registerMutation.isPending ? (
 								<>
 									<Loader2 className="w-4 h-4 animate-spin" />
 									กำลังสร้างบัญชี...

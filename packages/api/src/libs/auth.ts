@@ -8,13 +8,12 @@ const SESSION_DURATION = '7d'
 let _jwtSecret: Uint8Array | null = null
 
 function getJwtSecret(): Uint8Array {
-	if (!_jwtSecret) {
-		const secret = process.env.JWT_SECRET
-		if (!secret) {
-			throw new Error('JWT_SECRET environment variable is required')
-		}
-		_jwtSecret = new TextEncoder().encode(secret)
+	if (_jwtSecret) return _jwtSecret
+	const secret = process.env.JWT_SECRET
+	if (!secret) {
+		throw new Error('JWT_SECRET environment variable is required')
 	}
+	_jwtSecret = new TextEncoder().encode(secret)
 	return _jwtSecret
 }
 
