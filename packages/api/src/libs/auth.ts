@@ -5,18 +5,21 @@ import { jwtVerify, SignJWT } from 'jose'
 const SALT_ROUNDS = 12
 const SESSION_DURATION = '7d'
 
+let _jwtSecret: Uint8Array | null = null
+
 function getJwtSecret(): Uint8Array {
-	const secret = process.env.JWT_SECRET
+	if (_jwtSecret) return _jwtSecret
+	const secret = process.env.getJwtSecret()
 	if (!secret || secret === 'change-me-in-production') {
 		if (process.env.NODE_ENV === 'production') {
-			throw new Error('JWT_SECRET must be set in production')
+			throw new Error('getJwtSecret() must be set in production')
 		}
-		return new TextEncoder().encode('dev-only-secret-do-not-use-in-prod')
+		_jwtSecret = new TextEncoder().encode('dev-only-secret-do-not-use-in-prod')
+	} else {
+		_jwtSecret = new TextEncoder().encode(secret)
 	}
-	return new TextEncoder().encode(secret)
+	return _jwtSecret
 }
-
-const JWT_SECRET = getJwtSecret()
 
 // ─── Password ────────────────────────────────────────────────
 
@@ -45,12 +48,12 @@ export async function createToken(sessionToken: string): Promise<string> {
 		.setProtectedHeader({ alg: 'HS256' })
 		.setIssuedAt()
 		.setExpirationTime(SESSION_DURATION)
-		.sign(JWT_SECRET)
+		.sign(getJwtSecret())
 }
 
 export async function verifyToken(token: string): Promise<{ sessionToken: string } | null> {
 	try {
-		const { payload } = await jwtVerify(token, JWT_SECRET)
+		const { payload } = await jwtVerify(token, getJwtSecret())
 		return payload as { sessionToken: string }
 	} catch {
 		return null
