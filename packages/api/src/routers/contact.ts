@@ -1,3 +1,4 @@
+import type { Prisma } from '@oho/db'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { protectedProcedure, router } from '../trpc'
@@ -72,10 +73,14 @@ export const contactRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
+			const { customAttributes, ...rest } = input
 			return ctx.db.contact.create({
 				data: {
 					accountId: ctx.accountId,
-					...input,
+					...rest,
+					...(customAttributes && {
+						customAttributes: customAttributes as Prisma.InputJsonValue,
+					}),
 				},
 			})
 		}),
@@ -92,7 +97,7 @@ export const contactRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			const { id, ...data } = input
+			const { id, customAttributes, ...data } = input
 
 			const existing = await ctx.db.contact.findFirst({
 				where: { id, accountId: ctx.accountId },
@@ -104,7 +109,12 @@ export const contactRouter = router({
 
 			return ctx.db.contact.update({
 				where: { id },
-				data,
+				data: {
+					...data,
+					...(customAttributes !== undefined && {
+						customAttributes: customAttributes as Prisma.InputJsonValue,
+					}),
+				},
 			})
 		}),
 })
