@@ -93,7 +93,8 @@ export function MessageThread() {
 	const { data: teamMembersData } = trpc.user.list.useQuery(undefined, {
 		enabled: !!activeConversationId,
 	})
-	const teamMembers = teamMembersData ?? ([] as NonNullable<typeof teamMembersData>)
+	type TeamMember = NonNullable<typeof teamMembersData>[number]
+	const teamMembers: TeamMember[] = teamMembersData ?? []
 
 	const {
 		data: messagesData,
@@ -229,7 +230,7 @@ export function MessageThread() {
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" className="w-48">
-							{teamMembers?.map((member) => (
+							{teamMembers?.map((member: TeamMember) => (
 								<DropdownMenuItem
 									key={member.id}
 									onClick={() => handleAssign(member.id)}
