@@ -1,4 +1,3 @@
-import type { Prisma } from '@oho/db'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { protectedProcedure, router } from '../trpc'
@@ -79,7 +78,7 @@ export const contactRouter = router({
 					accountId: ctx.accountId,
 					...rest,
 					...(customAttributes && {
-						customAttributes: customAttributes as Prisma.InputJsonValue,
+						customAttributes: customAttributes as Record<string, unknown>,
 					}),
 				},
 			})
@@ -112,7 +111,7 @@ export const contactRouter = router({
 				data: {
 					...rest,
 					...(customAttributes !== undefined && {
-						customAttributes: customAttributes as Prisma.InputJsonValue,
+						customAttributes: customAttributes as Record<string, unknown>,
 					}),
 				},
 			})

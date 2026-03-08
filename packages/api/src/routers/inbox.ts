@@ -1,4 +1,3 @@
-import type { Prisma } from '@oho/db'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { adminProcedure, protectedProcedure, router } from '../trpc'
@@ -56,7 +55,7 @@ export const inboxRouter = router({
 				data: {
 					accountId: ctx.accountId,
 					...rest,
-					channelConfig: channelConfig as Prisma.InputJsonValue,
+					channelConfig: channelConfig as Record<string, unknown>,
 				},
 			})
 		}),
@@ -88,7 +87,7 @@ export const inboxRouter = router({
 				data: {
 					...rest,
 					...(channelConfig !== undefined && {
-						channelConfig: channelConfig as Prisma.InputJsonValue,
+						channelConfig: channelConfig as Record<string, unknown>,
 					}),
 				},
 			})

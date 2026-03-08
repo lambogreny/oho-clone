@@ -1,4 +1,3 @@
-import type { Prisma } from '@oho/db'
 import { db } from '@oho/db'
 import {
 	getProfile,
@@ -226,7 +225,7 @@ async function findOrCreateContact(lineUserId: string, accountId: string, access
 			accountId,
 			name,
 			avatarUrl,
-			customAttributes: { lineUserId } as unknown as Prisma.InputJsonValue,
+			customAttributes: { lineUserId } as Record<string, unknown>,
 		},
 	})
 }
