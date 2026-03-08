@@ -73,16 +73,17 @@ export const contactRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			const { customAttributes, ...rest } = input
-			return ctx.db.contact.create({
-				data: {
-					accountId: ctx.accountId,
-					...rest,
-					...(customAttributes && {
-						customAttributes: customAttributes as Prisma.InputJsonValue,
-					}),
-				},
-			})
+			const data: Prisma.ContactUncheckedCreateInput = {
+				accountId: ctx.accountId,
+				name: input.name,
+				email: input.email,
+				phone: input.phone,
+				avatarUrl: input.avatarUrl,
+			}
+			if (input.customAttributes) {
+				data.customAttributes = input.customAttributes as Prisma.InputJsonValue
+			}
+			return ctx.db.contact.create({ data })
 		}),
 
 	update: protectedProcedure
@@ -107,14 +108,10 @@ export const contactRouter = router({
 				throw new TRPCError({ code: 'NOT_FOUND', message: 'Contact not found' })
 			}
 
-			return ctx.db.contact.update({
-				where: { id },
-				data: {
-					...rest,
-					...(customAttributes && {
-						customAttributes: customAttributes as Prisma.InputJsonValue,
-					}),
-				},
-			})
+			const data: Prisma.ContactUncheckedUpdateInput = { ...rest }
+			if (customAttributes !== undefined) {
+				data.customAttributes = customAttributes as Prisma.InputJsonValue
+			}
+			return ctx.db.contact.update({ where: { id }, data })
 		}),
 })

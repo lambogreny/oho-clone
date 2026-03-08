@@ -2,107 +2,113 @@
 
 import { formatDistanceToNow } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { Search } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Loader2, Search } from 'lucide-react'
 import { useState } from 'react'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
+import { trpc } from '@/lib/trpc/client'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth'
 import { useConversationStore } from '@/stores/conversation'
 
-type Channel = 'line' | 'facebook' | 'instagram'
 type FilterTab = 'all' | 'mine' | 'unassigned'
 
-interface Conversation {
-	id: string
-	contactName: string
-	contactInitials: string
-	avatarColor: string
-	lastMessage: string
-	timestamp: Date
-	channel: Channel
-	unreadCount: number
-	assignedTo: string | null
-}
-
-const channelConfig: Record<Channel, { label: string; color: string; bg: string }> = {
-	line: { label: 'LINE', color: 'text-white', bg: 'bg-green-500' },
-	facebook: { label: 'FB', color: 'text-white', bg: 'bg-blue-600' },
-	instagram: {
+const channelConfig: Record<string, { label: string; color: string; bg: string }> = {
+	LINE: { label: 'LINE', color: 'text-white', bg: 'bg-green-500' },
+	FACEBOOK: { label: 'FB', color: 'text-white', bg: 'bg-blue-600' },
+	INSTAGRAM: {
 		label: 'IG',
 		color: 'text-white',
 		bg: 'bg-gradient-to-tr from-purple-500 via-pink-500 to-orange-400',
 	},
+	TIKTOK: { label: 'TT', color: 'text-white', bg: 'bg-gray-900' },
+	WEBCHAT: { label: 'WEB', color: 'text-white', bg: 'bg-primary' },
+	WHATSAPP: { label: 'WA', color: 'text-white', bg: 'bg-green-600' },
+	EMAIL: { label: 'EMAIL', color: 'text-white', bg: 'bg-gray-600' },
 }
 
-const mockConversations: Conversation[] = [
-	{
-		id: '1',
-		contactName: 'สมชาย ใจดี',
-		contactInitials: 'สช',
-		avatarColor: 'bg-blue-500',
-		lastMessage: 'สนใจสินค้าตัวนี้ครับ ราคาเท่าไหร่?',
-		timestamp: new Date(Date.now() - 2 * 60 * 1000),
-		channel: 'line',
-		unreadCount: 3,
-		assignedTo: 'me',
-	},
-	{
-		id: '2',
-		contactName: 'วิภาดา สุขสม',
-		contactInitials: 'วภ',
-		avatarColor: 'bg-pink-500',
-		lastMessage: 'ส่งของวันไหนคะ? รอมา 3 วันแล้ว',
-		timestamp: new Date(Date.now() - 15 * 60 * 1000),
-		channel: 'facebook',
-		unreadCount: 1,
-		assignedTo: 'me',
-	},
-	{
-		id: '3',
-		contactName: 'ธนพล เจริญสุข',
-		contactInitials: 'ธพ',
-		avatarColor: 'bg-emerald-500',
-		lastMessage: 'มีสีอื่นไหมครับ?',
-		timestamp: new Date(Date.now() - 45 * 60 * 1000),
-		channel: 'instagram',
-		unreadCount: 0,
-		assignedTo: null,
-	},
-	{
-		id: '4',
-		contactName: 'พิมพ์ใจ รักไทย',
-		contactInitials: 'พจ',
-		avatarColor: 'bg-amber-500',
-		lastMessage: 'ขอบคุณค่ะ ได้รับของเรียบร้อย',
-		timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000),
-		channel: 'line',
-		unreadCount: 0,
-		assignedTo: 'me',
-	},
-	{
-		id: '5',
-		contactName: 'อนุชา มั่นคง',
-		contactInitials: 'อช',
-		avatarColor: 'bg-violet-500',
-		lastMessage: 'สอบถามเรื่องการรับประกันสินค้าครับ',
-		timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000),
-		channel: 'facebook',
-		unreadCount: 2,
-		assignedTo: null,
-	},
+function getInitials(name: string): string {
+	const parts = name.trim().split(/\s+/)
+	if (parts.length >= 2) return `${parts[0]?.[0] ?? ''}${parts[1]?.[0] ?? ''}`
+	return name.slice(0, 2)
+}
+
+const avatarColors = [
+	'bg-blue-500',
+	'bg-pink-500',
+	'bg-emerald-500',
+	'bg-amber-500',
+	'bg-violet-500',
+	'bg-cyan-500',
+	'bg-rose-500',
+	'bg-indigo-500',
 ]
+
+function getAvatarColor(id: string): string {
+	let hash = 0
+	for (const char of id) {
+		hash = char.charCodeAt(0) + ((hash << 5) - hash)
+	}
+	return avatarColors[Math.abs(hash) % avatarColors.length] ?? 'bg-gray-500'
+}
+
+export function ConversationListSkeleton() {
+	return (
+		<div className="flex flex-col h-full">
+			<div className="p-4 border-b border-border space-y-3">
+				<Skeleton className="h-5 w-16" />
+				<Skeleton className="h-9 w-full" />
+				<div className="flex gap-1">
+					<Skeleton className="h-7 w-16" />
+					<Skeleton className="h-7 w-16" />
+					<Skeleton className="h-7 w-24" />
+				</div>
+			</div>
+			<div className="flex-1 p-2 space-y-1">
+				{Array.from({ length: 5 }).map((_, i) => (
+					<div key={`skel-${i.toString()}`} className="flex items-start gap-3 p-3">
+						<Skeleton className="w-10 h-10 rounded-full" />
+						<div className="flex-1 space-y-2">
+							<Skeleton className="h-4 w-24" />
+							<Skeleton className="h-3 w-full" />
+						</div>
+					</div>
+				))}
+			</div>
+		</div>
+	)
+}
 
 export function ConversationList() {
 	const [search, setSearch] = useState('')
 	const [activeTab, setActiveTab] = useState<FilterTab>('all')
 	const { activeConversationId, setActiveConversation } = useConversationStore()
+	const user = useAuthStore((s) => s.user)
 
-	const filteredConversations = mockConversations.filter((conv) => {
-		if (search && !conv.contactName.includes(search) && !conv.lastMessage.includes(search)) {
-			return false
-		}
-		if (activeTab === 'mine') return conv.assignedTo === 'me'
-		if (activeTab === 'unassigned') return conv.assignedTo === null
-		return true
-	})
+	const { data, isLoading, error } = trpc.conversation.list.useQuery(
+		{
+			status: 'OPEN',
+			...(activeTab === 'mine' && user ? { assigneeId: user.id } : {}),
+			...(activeTab === 'unassigned' ? { assigneeId: undefined } : {}),
+			limit: 50,
+		},
+		{ refetchInterval: 10_000 },
+	)
+
+	const conversations = data?.items ?? []
+
+	const filteredConversations = search
+		? conversations.filter((conv) => {
+				const contactName = conv.contact?.name ?? ''
+				const lastMsg = conv.messages?.[0]?.content ?? ''
+				return contactName.includes(search) || lastMsg.includes(search)
+			})
+		: activeTab === 'unassigned'
+			? conversations.filter((conv) => !conv.assigneeId)
+			: conversations
 
 	const tabs: { key: FilterTab; label: string }[] = [
 		{ key: 'all', label: 'ทั้งหมด' },
@@ -116,26 +122,25 @@ export function ConversationList() {
 			<div className="p-4 border-b border-border">
 				<h2 className="text-base font-semibold text-gray-900 mb-3">แชท</h2>
 
-				{/* Search */}
 				<div className="relative">
 					<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-					<input
+					<Input
 						type="text"
-						placeholder="ค้นหา..."
+						placeholder="ค้นหาชื่อหรือข้อความ..."
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
-						className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+						className="pl-9"
 					/>
 				</div>
 
-				{/* Filter Tabs */}
 				<div className="flex gap-1 mt-3">
 					{tabs.map((tab) => (
 						<button
 							key={tab.key}
+							type="button"
 							onClick={() => setActiveTab(tab.key)}
 							className={cn(
-								'px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
+								'px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer',
 								activeTab === tab.key
 									? 'bg-primary text-primary-foreground'
 									: 'text-muted-foreground hover:bg-muted',
@@ -149,59 +154,113 @@ export function ConversationList() {
 
 			{/* Conversation Items */}
 			<div className="flex-1 overflow-y-auto">
-				{filteredConversations.map((conv) => (
-					<button
-						key={conv.id}
-						onClick={() => setActiveConversation(conv.id)}
-						className={cn(
-							'w-full px-4 py-3 flex items-start gap-3 text-left hover:bg-gray-50 transition-colors border-b border-border/50',
-							activeConversationId === conv.id && 'bg-blue-50 hover:bg-blue-50',
-						)}
-					>
-						{/* Avatar */}
-						<div
-							className={cn(
-								'w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-medium shrink-0',
-								conv.avatarColor,
-							)}
-						>
-							{conv.contactInitials}
-						</div>
+				{isLoading ? (
+					<div className="flex items-center justify-center py-12">
+						<Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+					</div>
+				) : error ? (
+					<div className="flex flex-col items-center justify-center py-12 px-4">
+						<p className="text-sm text-destructive text-center">ไม่สามารถโหลดแชทได้</p>
+						<p className="text-xs text-muted-foreground mt-1">{error.message}</p>
+					</div>
+				) : (
+					<AnimatePresence mode="popLayout">
+						{filteredConversations.length === 0 ? (
+							<motion.div
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								className="flex flex-col items-center justify-center py-12 px-4"
+							>
+								<Search className="w-8 h-8 text-muted-foreground/40 mb-3" />
+								<p className="text-sm text-muted-foreground text-center">ไม่พบแชท</p>
+							</motion.div>
+						) : (
+							filteredConversations.map((conv) => {
+								const contactName = conv.contact?.name ?? 'ไม่ทราบชื่อ'
+								const initials = getInitials(contactName)
+								const channelType = conv.inbox?.channelType ?? 'WEBCHAT'
+								const channel = channelConfig[channelType] ?? channelConfig.WEBCHAT
+								const lastMessage = conv.messages?.[0]?.content ?? ''
+								const lastMessageAt = conv.lastMessageAt ?? conv.createdAt
+								const avatarColor = getAvatarColor(conv.id)
 
-						{/* Content */}
-						<div className="flex-1 min-w-0">
-							<div className="flex items-center justify-between gap-2">
-								<span className="text-sm font-medium text-gray-900 truncate">
-									{conv.contactName}
-								</span>
-								<span className="text-[11px] text-muted-foreground shrink-0">
-									{formatDistanceToNow(conv.timestamp, { addSuffix: false, locale: th })}
-								</span>
-							</div>
-							<div className="flex items-center justify-between gap-2 mt-0.5">
-								<p className="text-xs text-muted-foreground truncate">{conv.lastMessage}</p>
-								<div className="flex items-center gap-1.5 shrink-0">
-									{/* Channel Badge */}
-									<span
+								return (
+									<motion.button
+										key={conv.id}
+										type="button"
+										layout
+										initial={{ opacity: 0, y: 10 }}
+										animate={{ opacity: 1, y: 0 }}
+										exit={{ opacity: 0, y: -10 }}
+										transition={{ duration: 0.15 }}
+										onClick={() => setActiveConversation(conv.id)}
 										className={cn(
-											'px-1.5 py-0.5 text-[9px] font-bold rounded',
-											channelConfig[conv.channel].bg,
-											channelConfig[conv.channel].color,
+											'w-full px-4 py-3 flex items-start gap-3 text-left hover:bg-gray-50 transition-colors border-b border-border/50 cursor-pointer',
+											activeConversationId === conv.id &&
+												'bg-primary/5 hover:bg-primary/5 border-l-2 border-l-primary',
 										)}
 									>
-										{channelConfig[conv.channel].label}
-									</span>
-									{/* Unread Badge */}
-									{conv.unreadCount > 0 && (
-										<span className="w-5 h-5 bg-primary text-primary-foreground text-[10px] font-medium rounded-full flex items-center justify-center">
-											{conv.unreadCount}
-										</span>
-									)}
-								</div>
-							</div>
-						</div>
-					</button>
-				))}
+										<Avatar className={cn('w-10 h-10', avatarColor)}>
+											<AvatarFallback className={cn('text-white text-xs font-medium', avatarColor)}>
+												{initials}
+											</AvatarFallback>
+										</Avatar>
+
+										<div className="flex-1 min-w-0">
+											<div className="flex items-center justify-between gap-2">
+												<span
+													className={cn(
+														'text-sm truncate',
+														conv.unreadCount > 0
+															? 'font-semibold text-gray-900'
+															: 'font-medium text-gray-700',
+													)}
+												>
+													{contactName}
+												</span>
+												<span className="text-[11px] text-muted-foreground shrink-0">
+													{formatDistanceToNow(new Date(lastMessageAt), {
+														addSuffix: false,
+														locale: th,
+													})}
+												</span>
+											</div>
+											<div className="flex items-center justify-between gap-2 mt-0.5">
+												<p
+													className={cn(
+														'text-xs truncate',
+														conv.unreadCount > 0 ? 'text-gray-700' : 'text-muted-foreground',
+													)}
+												>
+													{lastMessage}
+												</p>
+												<div className="flex items-center gap-1.5 shrink-0">
+													<span
+														className={cn(
+															'px-1.5 py-0.5 text-[9px] font-bold rounded',
+															channel?.bg,
+															channel?.color,
+														)}
+													>
+														{channel?.label}
+													</span>
+													{conv.unreadCount > 0 && (
+														<Badge
+															variant="destructive"
+															className="h-5 min-w-5 px-1 text-[10px] flex items-center justify-center rounded-full"
+														>
+															{conv.unreadCount}
+														</Badge>
+													)}
+												</div>
+											</div>
+										</div>
+									</motion.button>
+								)
+							})
+						)}
+					</AnimatePresence>
+				)}
 			</div>
 		</>
 	)
