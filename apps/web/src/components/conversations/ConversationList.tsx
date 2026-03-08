@@ -15,7 +15,8 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useConversationStore } from '@/stores/conversation'
 
-type FilterTab = 'all' | 'mine' | 'unassigned'
+type StatusTab = 'all' | 'open' | 'pending' | 'resolved'
+type AssignTab = 'all' | 'mine' | 'unassigned'
 
 const channelConfig: Record<string, { label: string; color: string; bg: string }> = {
 	LINE: { label: 'LINE', color: 'text-white', bg: 'bg-green-500' },
@@ -85,16 +86,25 @@ export function ConversationListSkeleton() {
 
 export function ConversationList() {
 	const [search, setSearch] = useState('')
-	const [activeTab, setActiveTab] = useState<FilterTab>('all')
+	const [statusTab, setStatusTab] = useState<StatusTab>('all')
+	const [assignTab, setAssignTab] = useState<AssignTab>('all')
 	const { activeConversationId, setActiveConversation } = useConversationStore()
 	const user = useAuthStore((s) => s.user)
 	const utils = trpc.useUtils()
 
+	const statusMap: Record<StatusTab, string | undefined> = {
+		all: undefined,
+		open: 'OPEN',
+		pending: 'PENDING',
+		resolved: 'RESOLVED',
+	}
+
 	const { data, isLoading, error } = trpc.conversation.list.useQuery(
 		{
-			status: 'OPEN',
-			...(activeTab === 'mine' && user ? { assigneeId: user.id } : {}),
-			...(activeTab === 'unassigned' ? { assigneeId: undefined } : {}),
+			...(statusMap[statusTab]
+				? { status: statusMap[statusTab] as 'OPEN' | 'PENDING' | 'RESOLVED' | 'SNOOZED' }
+				: {}),
+			...(assignTab === 'mine' && user ? { assigneeId: user.id } : {}),
 			limit: 50,
 		},
 		{ refetchInterval: 30_000 },
@@ -121,11 +131,18 @@ export function ConversationList() {
 				const lastMsg = conv.messages?.[0]?.content ?? ''
 				return contactName.includes(search) || lastMsg.includes(search)
 			})
-		: activeTab === 'unassigned'
+		: assignTab === 'unassigned'
 			? conversations.filter((conv) => !conv.assigneeId)
 			: conversations
 
-	const tabs: { key: FilterTab; label: string }[] = [
+	const statusTabs: { key: StatusTab; label: string }[] = [
+		{ key: 'all', label: 'ทั้งหมด' },
+		{ key: 'open', label: 'เปิดอยู่' },
+		{ key: 'pending', label: 'รอดำเนินการ' },
+		{ key: 'resolved', label: 'แก้ไขแล้ว' },
+	]
+
+	const assignTabs: { key: AssignTab; label: string }[] = [
 		{ key: 'all', label: 'ทั้งหมด' },
 		{ key: 'mine', label: 'ของฉัน' },
 		{ key: 'unassigned', label: 'ยังไม่มอบหมาย' },
@@ -148,16 +165,36 @@ export function ConversationList() {
 					/>
 				</div>
 
+				{/* Status filter tabs */}
 				<div className="flex gap-1 mt-3">
-					{tabs.map((tab) => (
+					{statusTabs.map((tab) => (
 						<button
 							key={tab.key}
 							type="button"
-							onClick={() => setActiveTab(tab.key)}
+							onClick={() => setStatusTab(tab.key)}
 							className={cn(
 								'px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer',
-								activeTab === tab.key
+								statusTab === tab.key
 									? 'bg-primary text-primary-foreground'
+									: 'text-muted-foreground hover:bg-muted',
+							)}
+						>
+							{tab.label}
+						</button>
+					))}
+				</div>
+
+				{/* Assign filter tabs */}
+				<div className="flex gap-1 mt-1.5">
+					{assignTabs.map((tab) => (
+						<button
+							key={tab.key}
+							type="button"
+							onClick={() => setAssignTab(tab.key)}
+							className={cn(
+								'px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors cursor-pointer',
+								assignTab === tab.key
+									? 'bg-secondary text-secondary-foreground'
 									: 'text-muted-foreground hover:bg-muted',
 							)}
 						>
