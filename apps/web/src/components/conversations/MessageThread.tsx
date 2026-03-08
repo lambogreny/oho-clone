@@ -90,9 +90,10 @@ export function MessageThread() {
 		{ enabled: !!activeConversationId },
 	)
 
-	const { data: teamMembers } = trpc.user.list.useQuery(undefined, {
+	const { data: teamMembersData } = trpc.user.list.useQuery(undefined, {
 		enabled: !!activeConversationId,
 	})
+	const teamMembers = teamMembersData ?? ([] as NonNullable<typeof teamMembersData>)
 
 	const {
 		data: messagesData,
@@ -146,7 +147,8 @@ export function MessageThread() {
 		onError: () => toast.error('เปลี่ยนสถานะไม่สำเร็จ'),
 	})
 
-	const messages = [...(messagesData?.items ?? [])].reverse()
+	type MessageItem = NonNullable<typeof messagesData>['items'][number]
+	const messages: MessageItem[] = [...(messagesData?.items ?? [])].reverse()
 	const messageCount = messages.length
 
 	useEffect(() => {
