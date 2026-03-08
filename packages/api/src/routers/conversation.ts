@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { protectedProcedure, router } from '../trpc'
+import { emitConversationUpdate } from '../ws'
 
 export const conversationRouter = router({
 	list: protectedProcedure
@@ -93,6 +94,35 @@ export const conversationRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
+			// Verify inbox and contact belong to the same account
+			const [inbox, contact] = await Promise.all([
+				ctx.db.inbox.findFirst({
+					where: { id: input.inboxId, accountId: ctx.accountId },
+					select: { id: true },
+				}),
+				ctx.db.contact.findFirst({
+					where: { id: input.contactId, accountId: ctx.accountId },
+					select: { id: true },
+				}),
+			])
+			if (!inbox) {
+				throw new TRPCError({ code: 'NOT_FOUND', message: 'Inbox not found' })
+			}
+			if (!contact) {
+				throw new TRPCError({ code: 'NOT_FOUND', message: 'Contact not found' })
+			}
+
+			// Verify assignee belongs to the same account
+			if (input.assigneeId) {
+				const assignee = await ctx.db.user.findFirst({
+					where: { id: input.assigneeId, accountId: ctx.accountId },
+					select: { id: true },
+				})
+				if (!assignee) {
+					throw new TRPCError({ code: 'NOT_FOUND', message: 'Assignee not found' })
+				}
+			}
+
 			return ctx.db.conversation.create({
 				data: {
 					accountId: ctx.accountId,
@@ -137,13 +167,21 @@ export const conversationRouter = router({
 				throw new TRPCError({ code: 'NOT_FOUND', message: 'Conversation not found' })
 			}
 
-			return ctx.db.conversation.update({
+			const updated = await ctx.db.conversation.update({
 				where: { id: input.id },
 				data: {
 					status: input.status,
 					...(input.status === 'RESOLVED' && { unreadCount: 0 }),
 				},
 			})
+
+			emitConversationUpdate(ctx.accountId, {
+				id: updated.id,
+				status: updated.status,
+				...(input.status === 'RESOLVED' && { unreadCount: 0 }),
+			})
+
+			return updated
 		}),
 
 	assign: protectedProcedure
@@ -162,7 +200,18 @@ export const conversationRouter = router({
 				throw new TRPCError({ code: 'NOT_FOUND', message: 'Conversation not found' })
 			}
 
-			return ctx.db.conversation.update({
+			// Verify assignee belongs to the same account
+			if (input.assigneeId) {
+				const assignee = await ctx.db.user.findFirst({
+					where: { id: input.assigneeId, accountId: ctx.accountId },
+					select: { id: true },
+				})
+				if (!assignee) {
+					throw new TRPCError({ code: 'NOT_FOUND', message: 'Assignee not found' })
+				}
+			}
+
+			const updated = await ctx.db.conversation.update({
 				where: { id: input.id },
 				data: {
 					assigneeId: input.assigneeId,
@@ -172,5 +221,13 @@ export const conversationRouter = router({
 					assignee: { select: { id: true, name: true, displayName: true, avatarUrl: true } },
 				},
 			})
+
+			emitConversationUpdate(ctx.accountId, {
+				id: updated.id,
+				status: updated.status,
+				assigneeId: updated.assigneeId,
+			})
+
+			return updated
 		}),
 })

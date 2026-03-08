@@ -97,7 +97,7 @@ export const contactRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			const { id, customAttributes, ...data } = input
+			const { id, customAttributes, ...rest } = input
 
 			const existing = await ctx.db.contact.findFirst({
 				where: { id, accountId: ctx.accountId },
@@ -110,7 +110,7 @@ export const contactRouter = router({
 			return ctx.db.contact.update({
 				where: { id },
 				data: {
-					...data,
+					...rest,
 					...(customAttributes !== undefined && {
 						customAttributes: customAttributes as Prisma.InputJsonValue,
 					}),

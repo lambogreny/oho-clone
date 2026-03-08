@@ -3,8 +3,17 @@ import { compare, hash } from 'bcryptjs'
 import { jwtVerify, SignJWT } from 'jose'
 
 const SALT_ROUNDS = 12
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET ?? 'change-me-in-production')
 const SESSION_DURATION = '7d'
+
+function getJwtSecret(): Uint8Array {
+	const secret = process.env.JWT_SECRET
+	if (!secret) {
+		throw new Error('JWT_SECRET environment variable is required')
+	}
+	return new TextEncoder().encode(secret)
+}
+
+const JWT_SECRET = getJwtSecret()
 
 // ─── Password ────────────────────────────────────────────────
 
@@ -51,8 +60,8 @@ function getExpirationDate(duration: string): Date {
 	const match = duration.match(/^(\d+)([dhms])$/)
 	if (!match) return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
-	const value = parseInt(match[1], 10)
-	const unit = match[2]
+	const value = parseInt(match[1]!, 10)
+	const unit = match[2]!
 
 	const ms: Record<string, number> = {
 		d: 24 * 60 * 60 * 1000,
@@ -61,5 +70,5 @@ function getExpirationDate(duration: string): Date {
 		s: 1000,
 	}
 
-	return new Date(Date.now() + value * (ms[unit] ?? ms.d))
+	return new Date(Date.now() + value * (ms[unit] ?? ms.d!))
 }

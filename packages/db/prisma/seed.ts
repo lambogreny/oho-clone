@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import {
 	ChannelType,
 	ContentType,
@@ -10,12 +9,12 @@ import {
 	SenderType,
 	UserRole,
 } from '@prisma/client'
+import { hashSync } from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
-// Simple hash for seed — NOT for production auth
 function hashPassword(password: string): string {
-	return createHash('sha256').update(password).digest('hex')
+	return hashSync(password, 12)
 }
 
 async function main() {
