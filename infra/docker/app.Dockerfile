@@ -14,9 +14,10 @@ ARG NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
 RUN bunx next telemetry disable
-RUN bun run db:generate
-RUN cp -r packages/db/node_modules/.prisma node_modules/.prisma 2>/dev/null || true
-RUN cp -r packages/db/prisma/node_modules/@prisma/client node_modules/@prisma/client 2>/dev/null || true
+RUN cd packages/db && bunx prisma generate && cd ../..
+RUN ls -la packages/db/node_modules/.prisma/client/ 2>/dev/null || echo "NOT at packages/db/node_modules/.prisma/client" && \
+    ls -la packages/db/prisma/node_modules/@prisma/client/ 2>/dev/null || echo "NOT at packages/db/prisma/node_modules/@prisma/client" && \
+    ls -la node_modules/.prisma/client/ 2>/dev/null || echo "NOT at node_modules/.prisma/client"
 RUN bunx turbo build --filter=@oho/web
 
 # ── Stage 2: Production (Node — stable runtime) ──
