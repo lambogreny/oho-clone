@@ -126,14 +126,14 @@ export function ConversationList() {
 	type ConversationItem = NonNullable<typeof data>['items'][number]
 	const conversations: ConversationItem[] = data?.items ?? []
 
-	const filteredConversations = search
-		? conversations.filter((conv) => {
+	const filteredConversations: ConversationItem[] = search
+		? conversations.filter((conv: ConversationItem) => {
 				const contactName = conv.contact?.name ?? ''
 				const lastMsg = conv.messages?.[0]?.content ?? ''
 				return contactName.includes(search) || lastMsg.includes(search)
 			})
 		: assignTab === 'unassigned'
-			? conversations.filter((conv) => !conv.assigneeId)
+			? conversations.filter((conv: ConversationItem) => !conv.assigneeId)
 			: conversations
 
 	const statusTabs: { key: StatusTab; label: string }[] = [
