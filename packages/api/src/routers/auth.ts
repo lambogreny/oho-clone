@@ -1,3 +1,4 @@
+import type { Prisma } from '@oho/db'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import {
@@ -38,7 +39,7 @@ export const authRouter = router({
 			const passwordHash = await hashPassword(input.password)
 
 			// Transaction: create account + user + session
-			const result = await ctx.db.$transaction(async (tx) => {
+			const result = await ctx.db.$transaction(async (tx: Prisma.TransactionClient) => {
 				const account = await tx.account.create({
 					data: {
 						name: input.accountName,
