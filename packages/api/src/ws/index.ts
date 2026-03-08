@@ -24,8 +24,10 @@ export interface ServerToClientEvents {
 		id: string
 		status?: string
 		assigneeId?: string | null
+		teamId?: string | null
 		unreadCount?: number
 		lastMessageAt?: string
+		category?: string | null
 	}) => void
 	'conversation:new': (data: {
 		id: string
