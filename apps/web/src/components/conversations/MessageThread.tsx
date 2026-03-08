@@ -2,8 +2,13 @@
 
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Check, CheckCheck, Paperclip, Send, Smile } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useConversationStore } from '@/stores/conversation'
 
@@ -117,17 +122,45 @@ function StatusIcon({ status }: { status?: MessageStatus }) {
 	return <CheckCheck className="w-3 h-3 text-white" />
 }
 
+export function MessageThreadSkeleton() {
+	return (
+		<div className="flex flex-col h-full">
+			<div className="h-14 px-4 flex items-center gap-3 border-b border-border">
+				<Skeleton className="h-5 w-24" />
+				<Skeleton className="h-5 w-12 rounded" />
+			</div>
+			<div className="flex-1 p-4 space-y-3">
+				{Array.from({ length: 6 }).map((_, i) => (
+					<div
+						key={`msg-skel-${i.toString()}`}
+						className={cn('flex', i % 2 === 0 ? 'justify-start' : 'justify-end')}
+					>
+						<Skeleton className={cn('h-10 rounded-2xl', i % 3 === 0 ? 'w-48' : 'w-64')} />
+					</div>
+				))}
+			</div>
+			<div className="border-t border-border p-3">
+				<Skeleton className="h-10 w-full rounded-lg" />
+			</div>
+		</div>
+	)
+}
+
 export function MessageThread() {
 	const [input, setInput] = useState('')
 	const activeConversationId = useConversationStore((s) => s.activeConversationId)
+	const messagesEndRef = useRef<HTMLDivElement>(null)
 
 	const contact = activeConversationId ? contactInfo[activeConversationId] : null
+
+	useEffect(() => {
+		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+	}, [])
 
 	if (!contact) return null
 
 	const handleSend = () => {
 		if (!input.trim()) return
-		// TODO: Send message via tRPC/socket
 		setInput('')
 	}
 
@@ -138,7 +171,6 @@ export function MessageThread() {
 		}
 	}
 
-	// Group messages by date
 	const dateLabel = format(today, 'd MMMM yyyy', { locale: th })
 
 	return (
@@ -157,9 +189,9 @@ export function MessageThread() {
 						{contact.channel}
 					</span>
 				</div>
-				<span className="text-xs px-2 py-1 bg-success/10 text-success font-medium rounded-full">
+				<Badge variant="success" className="rounded-full text-[10px]">
 					เปิดอยู่
-				</span>
+				</Badge>
 			</div>
 
 			{/* Messages */}
@@ -171,67 +203,85 @@ export function MessageThread() {
 					<div className="flex-1 h-px bg-border" />
 				</div>
 
-				{mockMessages.map((msg) => (
-					<div
-						key={msg.id}
-						className={cn('flex', msg.direction === 'outbound' ? 'justify-end' : 'justify-start')}
-					>
-						<div
-							className={cn(
-								'max-w-[70%] px-3.5 py-2 rounded-2xl',
-								msg.direction === 'outbound'
-									? 'bg-primary text-primary-foreground rounded-br-md'
-									: 'bg-gray-100 text-gray-900 rounded-bl-md',
-							)}
+				<AnimatePresence initial={false}>
+					{mockMessages.map((msg) => (
+						<motion.div
+							key={msg.id}
+							initial={{ opacity: 0, y: 12, scale: 0.95 }}
+							animate={{ opacity: 1, y: 0, scale: 1 }}
+							transition={{ duration: 0.2, ease: 'easeOut' }}
+							className={cn('flex', msg.direction === 'outbound' ? 'justify-end' : 'justify-start')}
 						>
-							<p className="text-sm leading-relaxed">{msg.text}</p>
 							<div
 								className={cn(
-									'flex items-center gap-1 mt-1',
-									msg.direction === 'outbound' ? 'justify-end' : 'justify-start',
+									'max-w-[70%] px-3.5 py-2 rounded-2xl',
+									msg.direction === 'outbound'
+										? 'bg-primary text-primary-foreground rounded-br-md'
+										: 'bg-gray-100 text-gray-900 rounded-bl-md',
 								)}
 							>
-								<span
+								<p className="text-sm leading-relaxed">{msg.text}</p>
+								<div
 									className={cn(
-										'text-[10px]',
-										msg.direction === 'outbound' ? 'text-white/70' : 'text-muted-foreground',
+										'flex items-center gap-1 mt-1',
+										msg.direction === 'outbound' ? 'justify-end' : 'justify-start',
 									)}
 								>
-									{format(msg.timestamp, 'HH:mm')}
-								</span>
-								{msg.direction === 'outbound' && <StatusIcon status={msg.status} />}
+									<span
+										className={cn(
+											'text-[10px]',
+											msg.direction === 'outbound' ? 'text-white/70' : 'text-muted-foreground',
+										)}
+									>
+										{format(msg.timestamp, 'HH:mm')}
+									</span>
+									{msg.direction === 'outbound' && <StatusIcon status={msg.status} />}
+								</div>
 							</div>
-						</div>
-					</div>
-				))}
+						</motion.div>
+					))}
+				</AnimatePresence>
+				<div ref={messagesEndRef} />
 			</div>
 
 			{/* Input Area */}
 			<div className="border-t border-border p-3 shrink-0">
 				<div className="flex items-end gap-2">
-					<div className="flex items-center gap-1">
-						<button className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-gray-600 rounded-lg hover:bg-muted transition-colors">
+					<div className="flex items-center gap-0.5">
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							className="h-8 w-8 text-muted-foreground"
+						>
 							<Paperclip className="w-4 h-4" />
-						</button>
-						<button className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-gray-600 rounded-lg hover:bg-muted transition-colors">
+						</Button>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							className="h-8 w-8 text-muted-foreground"
+						>
 							<Smile className="w-4 h-4" />
-						</button>
+						</Button>
 					</div>
-					<input
+					<Input
 						type="text"
 						placeholder="พิมพ์ข้อความ..."
 						value={input}
 						onChange={(e) => setInput(e.target.value)}
 						onKeyDown={handleKeyDown}
-						className="flex-1 px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+						className="flex-1"
 					/>
-					<button
+					<Button
+						type="button"
+						size="icon"
 						onClick={handleSend}
 						disabled={!input.trim()}
-						className="w-9 h-9 bg-primary text-primary-foreground rounded-lg flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						className="h-9 w-9 shrink-0"
 					>
 						<Send className="w-4 h-4" />
-					</button>
+					</Button>
 				</div>
 			</div>
 		</>

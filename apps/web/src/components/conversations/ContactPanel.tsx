@@ -1,6 +1,10 @@
 'use client'
 
+import { motion } from 'framer-motion'
 import { Mail, MessageSquare, Phone, Tag } from 'lucide-react'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useConversationStore } from '@/stores/conversation'
 
@@ -12,7 +16,10 @@ interface ContactData {
 	phone: string
 	channel: string
 	channelBg: string
-	labels: { text: string; color: string }[]
+	labels: {
+		text: string
+		variant: 'default' | 'success' | 'warning' | 'destructive' | 'secondary' | 'outline'
+	}[]
 	previousConversations: { id: string; summary: string; date: string }[]
 }
 
@@ -26,8 +33,8 @@ const mockContacts: Record<string, ContactData> = {
 		channel: 'LINE',
 		channelBg: 'bg-green-500',
 		labels: [
-			{ text: 'VIP', color: 'bg-amber-100 text-amber-700' },
-			{ text: 'ลูกค้าประจำ', color: 'bg-blue-100 text-blue-700' },
+			{ text: 'VIP', variant: 'warning' },
+			{ text: 'ลูกค้าประจำ', variant: 'default' },
 		],
 		previousConversations: [
 			{ id: 'prev1', summary: 'สอบถามสินค้ารุ่น Basic', date: '5 มี.ค.' },
@@ -42,7 +49,7 @@ const mockContacts: Record<string, ContactData> = {
 		phone: '089-876-5432',
 		channel: 'Facebook',
 		channelBg: 'bg-blue-600',
-		labels: [{ text: 'ติดตามงาน', color: 'bg-red-100 text-red-700' }],
+		labels: [{ text: 'ติดตามงาน', variant: 'destructive' }],
 		previousConversations: [{ id: 'prev3', summary: 'สั่งซื้อสินค้า 2 ชิ้น', date: '1 มี.ค.' }],
 	},
 	'3': {
@@ -53,7 +60,7 @@ const mockContacts: Record<string, ContactData> = {
 		phone: '092-111-2222',
 		channel: 'Instagram',
 		channelBg: 'bg-gradient-to-tr from-purple-500 via-pink-500 to-orange-400',
-		labels: [{ text: 'ลูกค้าใหม่', color: 'bg-green-100 text-green-700' }],
+		labels: [{ text: 'ลูกค้าใหม่', variant: 'success' }],
 		previousConversations: [],
 	},
 	'4': {
@@ -64,7 +71,7 @@ const mockContacts: Record<string, ContactData> = {
 		phone: '085-333-4444',
 		channel: 'LINE',
 		channelBg: 'bg-green-500',
-		labels: [{ text: 'ลูกค้าประจำ', color: 'bg-blue-100 text-blue-700' }],
+		labels: [{ text: 'ลูกค้าประจำ', variant: 'default' }],
 		previousConversations: [{ id: 'prev4', summary: 'สอบถามโปรโมชั่น', date: '3 มี.ค.' }],
 	},
 	'5': {
@@ -80,6 +87,40 @@ const mockContacts: Record<string, ContactData> = {
 	},
 }
 
+const sectionVariants = {
+	hidden: { opacity: 0, y: 8 },
+	visible: (i: number) => ({
+		opacity: 1,
+		y: 0,
+		transition: { delay: i * 0.08, duration: 0.25, ease: 'easeOut' },
+	}),
+}
+
+export function ContactPanelSkeleton() {
+	return (
+		<div className="p-4 space-y-4">
+			<div className="flex flex-col items-center pb-4 border-b border-border">
+				<Skeleton className="w-16 h-16 rounded-full" />
+				<Skeleton className="h-4 w-24 mt-3" />
+				<Skeleton className="h-3 w-32 mt-1.5" />
+			</div>
+			<div className="space-y-2.5">
+				<Skeleton className="h-3 w-16" />
+				<Skeleton className="h-4 w-full" />
+				<Skeleton className="h-4 w-full" />
+				<Skeleton className="h-4 w-24" />
+			</div>
+			<div className="space-y-2">
+				<Skeleton className="h-3 w-12" />
+				<div className="flex gap-1.5">
+					<Skeleton className="h-5 w-12 rounded-full" />
+					<Skeleton className="h-5 w-16 rounded-full" />
+				</div>
+			</div>
+		</div>
+	)
+}
+
 export function ContactPanel() {
 	const activeConversationId = useConversationStore((s) => s.activeConversationId)
 	const contact = activeConversationId ? mockContacts[activeConversationId] : null
@@ -89,21 +130,30 @@ export function ContactPanel() {
 	return (
 		<div className="p-4">
 			{/* Avatar & Name */}
-			<div className="flex flex-col items-center pb-4 border-b border-border">
-				<div
-					className={cn(
-						'w-16 h-16 rounded-full flex items-center justify-center text-white text-lg font-medium',
-						contact.avatarColor,
-					)}
-				>
-					{contact.initials}
-				</div>
+			<motion.div
+				custom={0}
+				variants={sectionVariants}
+				initial="hidden"
+				animate="visible"
+				className="flex flex-col items-center pb-4 border-b border-border"
+			>
+				<Avatar className={cn('w-16 h-16', contact.avatarColor)}>
+					<AvatarFallback className={cn('text-white text-lg font-medium', contact.avatarColor)}>
+						{contact.initials}
+					</AvatarFallback>
+				</Avatar>
 				<h3 className="text-sm font-semibold text-gray-900 mt-3">{contact.name}</h3>
 				<p className="text-xs text-muted-foreground mt-0.5">{contact.email}</p>
-			</div>
+			</motion.div>
 
 			{/* Contact Info */}
-			<div className="py-4 border-b border-border">
+			<motion.div
+				custom={1}
+				variants={sectionVariants}
+				initial="hidden"
+				animate="visible"
+				className="py-4 border-b border-border"
+			>
 				<h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
 					ข้อมูลติดต่อ
 				</h4>
@@ -128,10 +178,16 @@ export function ContactPanel() {
 						</span>
 					</div>
 				</div>
-			</div>
+			</motion.div>
 
 			{/* Labels */}
-			<div className="py-4 border-b border-border">
+			<motion.div
+				custom={2}
+				variants={sectionVariants}
+				initial="hidden"
+				animate="visible"
+				className="py-4 border-b border-border"
+			>
 				<h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
 					<Tag className="w-3 h-3" />
 					แท็ก
@@ -139,21 +195,24 @@ export function ContactPanel() {
 				{contact.labels.length > 0 ? (
 					<div className="flex flex-wrap gap-1.5">
 						{contact.labels.map((label) => (
-							<span
-								key={label.text}
-								className={cn('px-2 py-0.5 text-xs font-medium rounded-full', label.color)}
-							>
+							<Badge key={label.text} variant={label.variant} className="rounded-full text-[10px]">
 								{label.text}
-							</span>
+							</Badge>
 						))}
 					</div>
 				) : (
 					<p className="text-xs text-muted-foreground">ยังไม่มีแท็ก</p>
 				)}
-			</div>
+			</motion.div>
 
 			{/* Previous Conversations */}
-			<div className="py-4">
+			<motion.div
+				custom={3}
+				variants={sectionVariants}
+				initial="hidden"
+				animate="visible"
+				className="py-4"
+			>
 				<h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
 					สนทนาก่อนหน้า
 				</h4>
@@ -162,7 +221,8 @@ export function ContactPanel() {
 						{contact.previousConversations.map((conv) => (
 							<button
 								key={conv.id}
-								className="w-full text-left p-2 rounded-lg hover:bg-muted transition-colors"
+								type="button"
+								className="w-full text-left p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer"
 							>
 								<p className="text-xs text-gray-700 truncate">{conv.summary}</p>
 								<p className="text-[10px] text-muted-foreground mt-0.5">{conv.date}</p>
@@ -172,7 +232,7 @@ export function ContactPanel() {
 				) : (
 					<p className="text-xs text-muted-foreground">ไม่มีสนทนาก่อนหน้า</p>
 				)}
-			</div>
+			</motion.div>
 		</div>
 	)
 }
