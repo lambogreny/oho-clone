@@ -243,7 +243,7 @@ export const conversationRouter = router({
 			}
 			return ctx.db.conversation.update({
 				where: { id: input.id },
-				data: { labels: { set: conv.labels.filter((l) => l !== input.label) } },
+				data: { labels: { set: conv.labels.filter((l: string) => l !== input.label) } },
 			})
 		}),
 

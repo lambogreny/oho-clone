@@ -150,12 +150,14 @@ export const messageRouter = router({
 				senderId: message.senderId,
 				status: message.status,
 				createdAt: message.createdAt.toISOString(),
-				attachments: message.attachments.map((a) => ({
-					id: a.id,
-					type: a.type,
-					url: a.url,
-					fileName: a.fileName,
-				})),
+				attachments: message.attachments.map(
+					(a: { id: string; type: string; url: string; fileName: string | null }) => ({
+						id: a.id,
+						type: a.type,
+						url: a.url,
+						fileName: a.fileName,
+					}),
+				),
 			})
 
 			// Deliver to LINE channel (fire-and-forget)
