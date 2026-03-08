@@ -111,7 +111,7 @@ export const contactRouter = router({
 				where: { id },
 				data: {
 					...rest,
-					...(customAttributes && {
+					...(customAttributes !== undefined && {
 						customAttributes: customAttributes as Prisma.InputJsonValue,
 					}),
 				},
