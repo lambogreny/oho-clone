@@ -1,0 +1,310 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────
+
+enum UserRole {
+  OWNER
+  ADMIN
+  AGENT
+}
+
+enum Presence {
+  ONLINE
+  OFFLINE
+  AWAY
+  BUSY
+}
+
+enum ChannelType {
+  LINE
+  FACEBOOK
+  INSTAGRAM
+  WHATSAPP
+  TIKTOK
+  WEBCHAT
+  EMAIL
+}
+
+enum ConversationStatus {
+  PENDING
+  OPEN
+  RESOLVED
+  SNOOZED
+}
+
+enum ConversationPriority {
+  URGENT
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ContentType {
+  TEXT
+  IMAGE
+  VIDEO
+  FILE
+  AUDIO
+  LOCATION
+  TEMPLATE
+  INTERACTIVE
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum SenderType {
+  CONTACT
+  AGENT
+  BOT
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+// ─── Models ──────────────────────────────────────────────────
+
+model Account {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  domain    String?
+  settings  Json     @default("{}")
+  plan      String   @default("free")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users         User[]
+  contacts      Contact[]
+  inboxes       Inbox[]
+  conversations Conversation[]
+  teams         Team[]
+  labels        Label[]
+
+  @@map("accounts")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  accountId    String   @map("account_id") @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  displayName  String?  @map("display_name")
+  avatarUrl    String?  @map("avatar_url")
+  role         UserRole @default(AGENT)
+  presence     Presence @default(OFFLINE)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  account               Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  sessions              Session[]
+  assignedConversations  Conversation[] @relation("ConversationAssignee")
+  teamMemberships       TeamMember[]
+  messages              Message[]      @relation("AgentMessages")
+
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  token        String   @unique @db.VarChar(255)
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  lastActiveAt DateTime @default(now()) @map("last_active_at")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([lastActiveAt(sort: Desc)])
+  @@map("sessions")
+}
+
+model Contact {
+  id               String   @id @default(uuid()) @db.Uuid
+  accountId        String   @map("account_id") @db.Uuid
+  name             String?
+  email            String?
+  phone            String?
+  avatarUrl        String?  @map("avatar_url")
+  customAttributes Json?    @map("custom_attributes")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  contactInboxes ContactInbox[]
+  conversations Conversation[]
+
+  @@map("contacts")
+}
+
+model Inbox {
+  id             String      @id @default(uuid()) @db.Uuid
+  accountId      String      @map("account_id") @db.Uuid
+  name           String
+  channelType    ChannelType @map("channel_type")
+  channelConfig  Json        @default("{}") @map("channel_config")
+  greeting       String?
+  autoAssignment Boolean     @default(true) @map("auto_assignment")
+  settings       Json        @default("{}")
+  isActive       Boolean     @default(true) @map("is_active")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  contactInboxes ContactInbox[]
+  inboxMembers  InboxMember[]
+
+  @@map("inboxes")
+}
+
+model ContactInbox {
+  id        String   @id @default(uuid()) @db.Uuid
+  contactId String   @map("contact_id") @db.Uuid
+  inboxId   String   @map("inbox_id") @db.Uuid
+  sourceId  String   @map("source_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  inbox   Inbox   @relation(fields: [inboxId], references: [id], onDelete: Cascade)
+
+  @@unique([inboxId, sourceId])
+  @@map("contact_inboxes")
+}
+
+model Conversation {
+  id               String              @id @default(uuid()) @db.Uuid
+  accountId        String              @map("account_id") @db.Uuid
+  inboxId          String              @map("inbox_id") @db.Uuid
+  contactId        String              @map("contact_id") @db.Uuid
+  assigneeId       String?             @map("assignee_id") @db.Uuid
+  teamId           String?             @map("team_id") @db.Uuid
+  status           ConversationStatus  @default(PENDING)
+  priority         ConversationPriority?
+  labels           String[]
+  customAttributes Json?               @map("custom_attributes")
+  lastMessageAt    DateTime?           @map("last_message_at")
+  unreadCount      Int                 @default(0) @map("unread_count")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  account  Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  inbox    Inbox    @relation(fields: [inboxId], references: [id], onDelete: Cascade)
+  contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  assignee User?    @relation("ConversationAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  team     Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  messages Message[]
+
+  @@index([accountId, status])
+  @@index([accountId, assigneeId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String           @id @default(uuid()) @db.Uuid
+  conversationId String           @map("conversation_id") @db.Uuid
+  contentType    ContentType      @default(TEXT) @map("content_type")
+  direction      MessageDirection
+  senderType     SenderType       @map("sender_type")
+  senderId       String           @map("sender_id")
+  content        String?
+  metadata       Json?
+  externalId     String?          @map("external_id")
+  status         MessageStatus    @default(PENDING)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  attachments  Attachment[]
+  agent        User?        @relation("AgentMessages", fields: [senderId], references: [id], onDelete: Cascade, map: "messages_agent_fk")
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model Attachment {
+  id           String   @id @default(uuid()) @db.Uuid
+  messageId    String   @map("message_id") @db.Uuid
+  type         String
+  url          String
+  fileName     String?  @map("file_name")
+  fileSize     Int?     @map("file_size")
+  mimeType     String?  @map("mime_type")
+  thumbnailUrl String?  @map("thumbnail_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+model Team {
+  id          String   @id @default(uuid()) @db.Uuid
+  accountId   String   @map("account_id") @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  members       TeamMember[]
+  conversations Conversation[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@map("team_members")
+}
+
+model Label {
+  id        String   @id @default(uuid()) @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  title     String
+  color     String   @default("#1f93ff")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, title])
+  @@map("labels")
+}
+
+model InboxMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  inboxId   String   @map("inbox_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  inbox Inbox @relation(fields: [inboxId], references: [id], onDelete: Cascade)
+
+  @@unique([inboxId, userId])
+  @@map("inbox_members")
+}

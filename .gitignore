@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+.next/
+out/
+.turbo/
+generated/
+
+# Environment
+.env
+.env.local
+.env.production
+!.env.example
+!.env.development
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Testing
+coverage/
+
+# Vault
+ψ/

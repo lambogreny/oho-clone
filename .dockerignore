@@ -1,0 +1,17 @@
+node_modules
+.next
+dist
+build
+generated
+.git
+.github
+.turbo
+.env
+.env.local
+.env.production
+*.md
+*.log
+coverage
+.vscode
+.idea
+ψ
