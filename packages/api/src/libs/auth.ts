@@ -9,15 +9,11 @@ let _jwtSecret: Uint8Array | null = null
 
 function getJwtSecret(): Uint8Array {
 	if (_jwtSecret) return _jwtSecret
-	const secret = process.env.getJwtSecret()
-	if (!secret || secret === 'change-me-in-production') {
-		if (process.env.NODE_ENV === 'production') {
-			throw new Error('getJwtSecret() must be set in production')
-		}
-		_jwtSecret = new TextEncoder().encode('dev-only-secret-do-not-use-in-prod')
-	} else {
-		_jwtSecret = new TextEncoder().encode(secret)
+	const secret = process.env.JWT_SECRET
+	if (!secret) {
+		throw new Error('JWT_SECRET environment variable is required')
 	}
+	_jwtSecret = new TextEncoder().encode(secret)
 	return _jwtSecret
 }
 
