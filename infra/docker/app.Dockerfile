@@ -30,6 +30,14 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/ws ./node_modules/ws
+COPY --from=builder /app/node_modules/socket.io ./node_modules/socket.io
+COPY --from=builder /app/node_modules/socket.io-adapter ./node_modules/socket.io-adapter
+COPY --from=builder /app/node_modules/socket.io-parser ./node_modules/socket.io-parser
+COPY --from=builder /app/node_modules/engine.io ./node_modules/engine.io
+COPY --from=builder /app/node_modules/engine.io-parser ./node_modules/engine.io-parser
+COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
+COPY --from=builder /app/node_modules/jose ./node_modules/jose
 
 USER nextjs
 
