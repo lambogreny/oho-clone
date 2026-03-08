@@ -5,7 +5,7 @@ import { pushMessage } from '../libs/line'
 import { protectedProcedure, router } from '../trpc'
 import { emitNewMessage } from '../ws'
 
-async function deliverToLine(
+async function _deliverToLine(
 	db: typeof prisma,
 	conversationId: string,
 	content: string,
@@ -105,6 +105,7 @@ export const messageRouter = router({
 					id: true,
 					contactId: true,
 					inboxId: true,
+					firstResponseAt: true,
 					inbox: { select: { channelType: true, channelConfig: true } },
 				},
 			})
@@ -131,7 +132,10 @@ export const messageRouter = router({
 				}),
 				ctx.db.conversation.update({
 					where: { id: input.conversationId },
-					data: { lastMessageAt: now },
+					data: {
+						lastMessageAt: now,
+						...(!conversation.firstResponseAt && { firstResponseAt: now }),
+					},
 				}),
 			])
 

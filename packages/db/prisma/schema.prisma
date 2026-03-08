@@ -115,6 +115,7 @@ model User {
   sessions              Session[]
   assignedConversations  Conversation[] @relation("ConversationAssignee")
   teamMemberships       TeamMember[]
+  conversationNotes     ConversationNote[]
   @@map("users")
 }
 
@@ -202,6 +203,9 @@ model Conversation {
   customAttributes Json?               @map("custom_attributes")
   lastMessageAt    DateTime?           @map("last_message_at")
   unreadCount      Int                 @default(0) @map("unread_count")
+  firstResponseAt  DateTime?           @map("first_response_at")
+  resolvedAt       DateTime?           @map("resolved_at")
+  category         String?
   createdAt        DateTime            @default(now()) @map("created_at")
   updatedAt        DateTime            @updatedAt @map("updated_at")
 
@@ -211,10 +215,25 @@ model Conversation {
   assignee User?    @relation("ConversationAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   team     Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
   messages Message[]
+  notes    ConversationNote[]
 
   @@index([accountId, status])
   @@index([accountId, assigneeId])
   @@map("conversations")
+}
+
+model ConversationNote {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  content        String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("conversation_notes")
 }
 
 model Message {
