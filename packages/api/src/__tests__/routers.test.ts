@@ -416,7 +416,12 @@ describe('message router', () => {
 			const convId = '11111111-1111-4000-a000-111111111111'
 			const msg = makeMessage(convId)
 
-			;(db.conversation.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({ id: convId })
+			;(db.conversation.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+				id: convId,
+				contactId: 'contact-1',
+				inboxId: 'inbox-1',
+				inbox: { channelType: 'WEBCHAT', channelConfig: {} },
+			})
 			;(db.$transaction as ReturnType<typeof vi.fn>).mockResolvedValue([msg, {}])
 
 			const result = await caller.message.send({

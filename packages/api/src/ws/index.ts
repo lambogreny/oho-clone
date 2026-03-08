@@ -131,7 +131,7 @@ export function createSocketServer(httpServer: HTTPServer) {
 				where: { id: user.id },
 				data: { presence: 'ONLINE' },
 			})
-			.catch(() => {})
+			.catch((err) => console.error('[WS] Failed to update presence:', err.message))
 
 		// ─── Join/Leave Conversations ──────────────────────────
 
@@ -165,17 +165,23 @@ export function createSocketServer(httpServer: HTTPServer) {
 
 		socket.on('message:read', async (data) => {
 			try {
-				// Mark message as read
-				await db.message.update({
-					where: { id: data.messageId },
-					data: { status: 'READ' },
+				// Verify conversation belongs to user's account before updating
+				const conversation = await db.conversation.findFirst({
+					where: { id: data.conversationId, accountId },
 				})
+				if (!conversation) return
 
-				// Reset unread count
-				await db.conversation.update({
-					where: { id: data.conversationId },
-					data: { unreadCount: 0 },
-				})
+				// Mark message as read + reset unread in transaction
+				await db.$transaction([
+					db.message.update({
+						where: { id: data.messageId },
+						data: { status: 'READ' },
+					}),
+					db.conversation.update({
+						where: { id: data.conversationId },
+						data: { unreadCount: 0 },
+					}),
+				])
 
 				// Broadcast to conversation room
 				io.to(`conversation:${data.conversationId}`).emit('message:status', {
@@ -207,7 +213,7 @@ export function createSocketServer(httpServer: HTTPServer) {
 					where: { id: user.id },
 					data: { presence: 'OFFLINE' },
 				})
-				.catch(() => {})
+				.catch((err) => console.error('[WS] Failed to update presence:', err.message))
 		})
 	})
 

@@ -70,7 +70,7 @@ export const createTRPCContext = async (opts: { headers: Headers }): Promise<TRP
 						where: { id: session.id },
 						data: { lastActiveAt: new Date() },
 					})
-					.catch(() => {})
+					.catch((err) => console.error('[Auth] Failed to update lastActiveAt:', err.message))
 			}
 		}
 	}

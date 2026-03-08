@@ -81,7 +81,7 @@ export function ContactPanel() {
 
 	const channelType = conversation.inbox?.channelType ?? 'WEBCHAT'
 	const channel = channelConfig[channelType] ?? channelConfig.WEBCHAT
-	const initials = getInitials(contact.name)
+	const initials = getInitials(contact.name ?? '')
 	const avatarColor = getAvatarColor(contact.id)
 
 	return (

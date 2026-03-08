@@ -129,8 +129,8 @@ export default function LoginPage() {
 						</div>
 
 						{/* Submit */}
-						<Button type="submit" className="w-full" disabled={isSubmitting}>
-							{isSubmitting ? (
+						<Button type="submit" className="w-full" disabled={signIn.isPending}>
+							{signIn.isPending ? (
 								<>
 									<Loader2 className="w-4 h-4 animate-spin" />
 									กำลังเข้าสู่ระบบ...
