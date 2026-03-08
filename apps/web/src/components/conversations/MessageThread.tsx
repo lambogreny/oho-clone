@@ -7,16 +7,26 @@ import {
 	AlertCircle,
 	Check,
 	CheckCheck,
+	CheckCircle2,
+	ChevronDown,
 	Loader2,
 	Paperclip,
 	RefreshCw,
+	RotateCcw,
 	Send,
 	Smile,
+	UserPlus,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useConversationRoom, useSocketEvent } from '@/lib/socket'
@@ -75,13 +85,15 @@ export function MessageThread() {
 	const messagesEndRef = useRef<HTMLDivElement>(null)
 	const utils = trpc.useUtils()
 
-	// Fetch conversation details
 	const { data: conversation } = trpc.conversation.getById.useQuery(
 		{ id: activeConversationId! },
 		{ enabled: !!activeConversationId },
 	)
 
-	// Fetch messages
+	const { data: teamMembers } = trpc.user.list.useQuery(undefined, {
+		enabled: !!activeConversationId,
+	})
+
 	const {
 		data: messagesData,
 		isLoading: messagesLoading,
@@ -92,24 +104,20 @@ export function MessageThread() {
 		{ enabled: !!activeConversationId, refetchInterval: 30_000 },
 	)
 
-	// Join conversation room for real-time events
 	useConversationRoom(activeConversationId)
 
-	// Real-time: new messages via WebSocket
 	useSocketEvent('message:new', (data) => {
 		if (data.conversationId === activeConversationId) {
 			utils.message.list.invalidate({ conversationId: activeConversationId! })
 		}
 	})
 
-	// Real-time: message status updates
 	useSocketEvent('message:status', () => {
 		if (activeConversationId) {
 			utils.message.list.invalidate({ conversationId: activeConversationId })
 		}
 	})
 
-	// Send message mutation
 	const sendMessage = trpc.message.send.useMutation({
 		onSuccess: () => {
 			utils.message.list.invalidate({ conversationId: activeConversationId! })
@@ -120,11 +128,27 @@ export function MessageThread() {
 		},
 	})
 
-	// Messages come newest-first from API, reverse for display
+	const assignConversation = trpc.conversation.assign.useMutation({
+		onSuccess: (data) => {
+			utils.conversation.getById.invalidate({ id: activeConversationId! })
+			utils.conversation.list.invalidate()
+			const name = data.assignee?.displayName ?? data.assignee?.name ?? 'ไม่มี'
+			toast.success(`มอบหมายให้ ${name} แล้ว`)
+		},
+		onError: () => toast.error('มอบหมายไม่สำเร็จ'),
+	})
+
+	const updateStatus = trpc.conversation.updateStatus.useMutation({
+		onSuccess: () => {
+			utils.conversation.getById.invalidate({ id: activeConversationId! })
+			utils.conversation.list.invalidate()
+		},
+		onError: () => toast.error('เปลี่ยนสถานะไม่สำเร็จ'),
+	})
+
 	const messages = [...(messagesData?.items ?? [])].reverse()
 	const messageCount = messages.length
 
-	// Scroll to bottom when messages change
 	useEffect(() => {
 		if (messageCount > 0) {
 			messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -136,6 +160,7 @@ export function MessageThread() {
 	const contactName = conversation?.contact?.name ?? 'Loading...'
 	const channelType = conversation?.inbox?.channelType ?? 'WEBCHAT'
 	const channel = channelConfig[channelType] ?? channelConfig.WEBCHAT
+	const isResolved = conversation?.status === 'RESOLVED'
 
 	const handleSend = () => {
 		if (!input.trim() || !activeConversationId) return
@@ -154,7 +179,18 @@ export function MessageThread() {
 		}
 	}
 
-	// Group messages by date
+	const handleAssign = (assigneeId: string | null) => {
+		if (!activeConversationId) return
+		assignConversation.mutate({ id: activeConversationId, assigneeId })
+	}
+
+	const handleToggleStatus = () => {
+		if (!activeConversationId) return
+		const newStatus = isResolved ? 'OPEN' : 'RESOLVED'
+		updateStatus.mutate({ id: activeConversationId, status: newStatus })
+		toast.success(newStatus === 'RESOLVED' ? 'ปิดแชทแล้ว' : 'เปิดแชทอีกครั้ง')
+	}
+
 	const groupedByDate = new Map<string, typeof messages>()
 	for (const msg of messages) {
 		const dateKey = format(new Date(msg.createdAt), 'yyyy-MM-dd')
@@ -167,15 +203,85 @@ export function MessageThread() {
 		<>
 			{/* Header */}
 			<div className="h-14 px-4 flex items-center justify-between border-b border-border shrink-0">
-				<div className="flex items-center gap-3">
-					<h3 className="text-sm font-semibold text-gray-900">{contactName}</h3>
-					<span className={cn('px-2 py-0.5 text-[10px] font-bold rounded text-white', channel?.bg)}>
+				<div className="flex items-center gap-3 min-w-0">
+					<h3 className="text-sm font-semibold text-gray-900 truncate">{contactName}</h3>
+					<span
+						className={cn(
+							'px-2 py-0.5 text-[10px] font-bold rounded text-white shrink-0',
+							channel?.bg,
+						)}
+					>
 						{channel?.label}
 					</span>
 				</div>
-				<Badge variant="success" className="rounded-full text-[10px]">
-					{conversation?.status === 'OPEN' ? 'เปิดอยู่' : (conversation?.status ?? '...')}
-				</Badge>
+				<div className="flex items-center gap-2 shrink-0">
+					{/* Assign dropdown */}
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
+								<UserPlus className="w-3.5 h-3.5" />
+								<span className="hidden sm:inline truncate max-w-20">
+									{conversation?.assignee?.displayName ?? conversation?.assignee?.name ?? 'มอบหมาย'}
+								</span>
+								<ChevronDown className="w-3 h-3" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-48">
+							{teamMembers?.map((member) => (
+								<DropdownMenuItem
+									key={member.id}
+									onClick={() => handleAssign(member.id)}
+									className={cn(
+										'text-xs',
+										conversation?.assignee?.id === member.id && 'bg-primary/5 font-medium',
+									)}
+								>
+									<div className="flex items-center gap-2 w-full">
+										<div
+											className={cn(
+												'w-2 h-2 rounded-full',
+												member.presence === 'ONLINE' ? 'bg-green-500' : 'bg-gray-300',
+											)}
+										/>
+										<span className="truncate">{member.displayName ?? member.name}</span>
+										{conversation?.assignee?.id === member.id && (
+											<Check className="w-3 h-3 ml-auto text-primary" />
+										)}
+									</div>
+								</DropdownMenuItem>
+							))}
+							{conversation?.assigneeId && (
+								<>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem
+										onClick={() => handleAssign(null)}
+										className="text-xs text-muted-foreground"
+									>
+										ยกเลิกการมอบหมาย
+									</DropdownMenuItem>
+								</>
+							)}
+						</DropdownMenuContent>
+					</DropdownMenu>
+
+					{/* Resolve / Reopen */}
+					<Button
+						variant={isResolved ? 'outline' : 'default'}
+						size="sm"
+						className="h-7 gap-1.5 text-xs"
+						onClick={handleToggleStatus}
+						disabled={updateStatus.isPending}
+					>
+						{updateStatus.isPending ? (
+							<Loader2 className="w-3.5 h-3.5 animate-spin" />
+						) : isResolved ? (
+							<RotateCcw className="w-3.5 h-3.5" />
+						) : (
+							<CheckCircle2 className="w-3.5 h-3.5" />
+						)}
+						<span className="hidden sm:inline">{isResolved ? 'เปิดอีกครั้ง' : 'ปิดแชท'}</span>
+					</Button>
+				</div>
 			</div>
 
 			{/* Messages */}
@@ -206,7 +312,6 @@ export function MessageThread() {
 				) : (
 					Array.from(groupedByDate.entries()).map(([dateKey, msgs]) => (
 						<div key={dateKey}>
-							{/* Date separator */}
 							<div className="flex items-center gap-3 my-4">
 								<div className="flex-1 h-px bg-border" />
 								<span className="text-[11px] text-muted-foreground font-medium">
@@ -214,7 +319,6 @@ export function MessageThread() {
 								</span>
 								<div className="flex-1 h-px bg-border" />
 							</div>
-
 							<AnimatePresence initial={false}>
 								{msgs.map((msg) => (
 									<motion.div
@@ -266,47 +370,60 @@ export function MessageThread() {
 
 			{/* Input Area */}
 			<div className="border-t border-border p-3 shrink-0">
-				<div className="flex items-end gap-2">
-					<div className="flex items-center gap-0.5">
+				{isResolved ? (
+					<div className="flex items-center justify-center py-2 text-xs text-muted-foreground">
+						แชทนี้ถูกปิดแล้ว —{' '}
+						<button
+							type="button"
+							onClick={handleToggleStatus}
+							className="text-primary hover:underline ml-1"
+						>
+							เปิดอีกครั้ง
+						</button>
+					</div>
+				) : (
+					<div className="flex items-end gap-2">
+						<div className="hidden sm:flex items-center gap-0.5">
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon"
+								className="h-8 w-8 text-muted-foreground"
+							>
+								<Paperclip className="w-4 h-4" />
+							</Button>
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon"
+								className="h-8 w-8 text-muted-foreground"
+							>
+								<Smile className="w-4 h-4" />
+							</Button>
+						</div>
+						<Input
+							type="text"
+							placeholder="พิมพ์ข้อความ..."
+							value={input}
+							onChange={(e) => setInput(e.target.value)}
+							onKeyDown={handleKeyDown}
+							className="flex-1"
+						/>
 						<Button
 							type="button"
-							variant="ghost"
 							size="icon"
-							className="h-8 w-8 text-muted-foreground"
+							onClick={handleSend}
+							disabled={!input.trim() || sendMessage.isPending}
+							className="h-9 w-9 shrink-0"
 						>
-							<Paperclip className="w-4 h-4" />
-						</Button>
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon"
-							className="h-8 w-8 text-muted-foreground"
-						>
-							<Smile className="w-4 h-4" />
+							{sendMessage.isPending ? (
+								<Loader2 className="w-4 h-4 animate-spin" />
+							) : (
+								<Send className="w-4 h-4" />
+							)}
 						</Button>
 					</div>
-					<Input
-						type="text"
-						placeholder="พิมพ์ข้อความ..."
-						value={input}
-						onChange={(e) => setInput(e.target.value)}
-						onKeyDown={handleKeyDown}
-						className="flex-1"
-					/>
-					<Button
-						type="button"
-						size="icon"
-						onClick={handleSend}
-						disabled={!input.trim() || sendMessage.isPending}
-						className="h-9 w-9 shrink-0"
-					>
-						{sendMessage.isPending ? (
-							<Loader2 className="w-4 h-4 animate-spin" />
-						) : (
-							<Send className="w-4 h-4" />
-						)}
-					</Button>
-				</div>
+				)}
 			</div>
 		</>
 	)
