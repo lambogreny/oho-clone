@@ -123,7 +123,8 @@ export function ConversationList() {
 		utils.conversation.list.invalidate()
 	})
 
-	const conversations = data?.items ?? []
+	type ConversationItem = NonNullable<typeof data>['items'][number]
+	const conversations: ConversationItem[] = data?.items ?? []
 
 	const filteredConversations = search
 		? conversations.filter((conv) => {
