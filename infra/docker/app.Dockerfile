@@ -15,6 +15,8 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
 RUN bunx next telemetry disable
 RUN bun run db:generate
+RUN cp -r packages/db/node_modules/.prisma node_modules/.prisma 2>/dev/null || true
+RUN cp -r packages/db/prisma/node_modules/@prisma/client node_modules/@prisma/client 2>/dev/null || true
 RUN bunx turbo build --filter=@oho/web
 
 # ── Stage 2: Production (Node — stable runtime) ──
