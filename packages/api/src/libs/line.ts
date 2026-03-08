@@ -17,6 +17,9 @@ export interface LineWebhookEvent {
 	}
 	replyToken?: string
 	timestamp: number
+	deliveryContext?: {
+		isRedelivery: boolean
+	}
 }
 
 export interface LineWebhookBody {
@@ -24,7 +27,7 @@ export interface LineWebhookBody {
 	events: LineWebhookEvent[]
 }
 
-interface LineReplyMessage {
+interface LineMessage {
 	type: 'text'
 	text: string
 }
@@ -66,7 +69,7 @@ async function lineApiRequest(
 
 export async function replyMessage(
 	replyToken: string,
-	messages: LineReplyMessage[],
+	messages: LineMessage[],
 	accessToken: string,
 ): Promise<void> {
 	const res = await lineApiRequest('/bot/message/reply', accessToken, {
@@ -81,7 +84,7 @@ export async function replyMessage(
 
 export async function pushMessage(
 	to: string,
-	messages: LineReplyMessage[],
+	messages: LineMessage[],
 	accessToken: string,
 ): Promise<void> {
 	const res = await lineApiRequest('/bot/message/push', accessToken, {
