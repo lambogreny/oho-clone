@@ -6,12 +6,15 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { trpc } from '@/lib/trpc/client'
+import { useAuthStore } from '@/stores/auth'
 
 const loginSchema = z.object({
 	email: z.string().min(1, 'กรุณากรอกอีเมล').email('รูปแบบอีเมลไม่ถูกต้อง'),
@@ -23,20 +26,34 @@ type LoginFormValues = z.infer<typeof loginSchema>
 export default function LoginPage() {
 	const router = useRouter()
 	const [showPassword, setShowPassword] = useState(false)
+	const setAuth = useAuthStore((s) => s.setAuth)
+
+	const signIn = trpc.auth.signIn.useMutation({
+		onSuccess: (data) => {
+			setAuth(data.token, data.user)
+			toast.success('เข้าสู่ระบบสำเร็จ')
+			router.push('/app')
+		},
+		onError: (error) => {
+			if (error.data?.code === 'UNAUTHORIZED') {
+				toast.error('อีเมลหรือรหัสผ่านไม่ถูกต้อง')
+			} else {
+				toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')
+			}
+		},
+	})
 
 	const {
 		register,
 		handleSubmit,
-		formState: { errors, isSubmitting },
+		formState: { errors },
 	} = useForm<LoginFormValues>({
 		resolver: zodResolver(loginSchema),
 		defaultValues: { email: '', password: '' },
 	})
 
-	const onSubmit = async (_data: LoginFormValues) => {
-		// TODO: Implement actual authentication via tRPC
-		await new Promise((resolve) => setTimeout(resolve, 1000))
-		router.push('/app')
+	const onSubmit = (data: LoginFormValues) => {
+		signIn.mutate(data)
 	}
 
 	return (
