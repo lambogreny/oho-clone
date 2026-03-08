@@ -1,3 +1,4 @@
+import type { Prisma } from '@oho/db'
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { adminProcedure, protectedProcedure, router } from '../trpc'
@@ -50,10 +51,12 @@ export const inboxRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
+			const { channelConfig, ...rest } = input
 			return ctx.db.inbox.create({
 				data: {
 					accountId: ctx.accountId,
-					...input,
+					...rest,
+					channelConfig: channelConfig as Prisma.InputJsonValue,
 				},
 			})
 		}),
@@ -70,7 +73,7 @@ export const inboxRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			const { id, ...data } = input
+			const { id, channelConfig, ...rest } = input
 
 			const existing = await ctx.db.inbox.findFirst({
 				where: { id, accountId: ctx.accountId },
@@ -82,7 +85,12 @@ export const inboxRouter = router({
 
 			return ctx.db.inbox.update({
 				where: { id },
-				data,
+				data: {
+					...rest,
+					...(channelConfig && {
+						channelConfig: channelConfig as Prisma.InputJsonValue,
+					}),
+				},
 			})
 		}),
 })

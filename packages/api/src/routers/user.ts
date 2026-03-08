@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { protectedProcedure, router } from '../trpc'
 
@@ -21,8 +22,8 @@ export const userRouter = router({
 	getById: protectedProcedure
 		.input(z.object({ id: z.string().uuid() }))
 		.query(async ({ ctx, input }) => {
-			return ctx.db.user.findUniqueOrThrow({
-				where: { id: input.id },
+			const user = await ctx.db.user.findFirst({
+				where: { id: input.id, accountId: ctx.accountId },
 				select: {
 					id: true,
 					name: true,
@@ -33,6 +34,10 @@ export const userRouter = router({
 					presence: true,
 				},
 			})
+			if (!user) {
+				throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' })
+			}
+			return user
 		}),
 
 	updatePresence: protectedProcedure

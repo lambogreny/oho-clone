@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { protectedProcedure, router } from '../trpc'
+import { emitConversationUpdate } from '../ws'
 
 export const conversationRouter = router({
 	list: protectedProcedure
@@ -137,13 +138,21 @@ export const conversationRouter = router({
 				throw new TRPCError({ code: 'NOT_FOUND', message: 'Conversation not found' })
 			}
 
-			return ctx.db.conversation.update({
+			const updated = await ctx.db.conversation.update({
 				where: { id: input.id },
 				data: {
 					status: input.status,
 					...(input.status === 'RESOLVED' && { unreadCount: 0 }),
 				},
 			})
+
+			emitConversationUpdate(ctx.accountId, {
+				id: updated.id,
+				status: updated.status,
+				...(input.status === 'RESOLVED' && { unreadCount: 0 }),
+			})
+
+			return updated
 		}),
 
 	assign: protectedProcedure
@@ -162,7 +171,7 @@ export const conversationRouter = router({
 				throw new TRPCError({ code: 'NOT_FOUND', message: 'Conversation not found' })
 			}
 
-			return ctx.db.conversation.update({
+			const updated = await ctx.db.conversation.update({
 				where: { id: input.id },
 				data: {
 					assigneeId: input.assigneeId,
@@ -172,5 +181,13 @@ export const conversationRouter = router({
 					assignee: { select: { id: true, name: true, displayName: true, avatarUrl: true } },
 				},
 			})
+
+			emitConversationUpdate(ctx.accountId, {
+				id: updated.id,
+				status: updated.status,
+				assigneeId: updated.assigneeId,
+			})
+
+			return updated
 		}),
 })
