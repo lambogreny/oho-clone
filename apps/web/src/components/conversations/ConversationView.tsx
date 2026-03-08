@@ -1,24 +1,35 @@
 'use client'
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { MessageCircle } from 'lucide-react'
+import { ArrowLeft, MessageCircle } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useConversationStore } from '@/stores/conversation'
 import { ContactPanel } from './ContactPanel'
 import { ConversationList } from './ConversationList'
 import { MessageThread } from './MessageThread'
 
 export function ConversationView() {
-	const activeConversationId = useConversationStore((s) => s.activeConversationId)
+	const { activeConversationId, setActiveConversation } = useConversationStore()
 
 	return (
 		<div className="flex h-full">
 			{/* Left: Conversation List */}
-			<div className="w-80 border-r border-border bg-white shrink-0 flex flex-col">
+			<div
+				className={cn(
+					'w-full md:w-80 border-r border-border bg-white shrink-0 flex flex-col',
+					activeConversationId ? 'hidden md:flex' : 'flex',
+				)}
+			>
 				<ConversationList />
 			</div>
 
 			{/* Center: Message Thread */}
-			<div className="flex-1 flex flex-col bg-white">
+			<div
+				className={cn(
+					'flex-1 flex flex-col bg-white',
+					activeConversationId ? 'flex' : 'hidden md:flex',
+				)}
+			>
 				<AnimatePresence mode="wait">
 					{activeConversationId ? (
 						<motion.div
@@ -29,6 +40,18 @@ export function ConversationView() {
 							transition={{ duration: 0.15 }}
 							className="flex-1 flex flex-col"
 						>
+							{/* Mobile back button */}
+							<div className="flex items-center gap-2 px-3 py-2 border-b border-border md:hidden">
+								<button
+									type="button"
+									onClick={() => setActiveConversation(null)}
+									className="p-1 -ml-1 text-muted-foreground hover:text-foreground"
+									aria-label="กลับไปรายการแชท"
+								>
+									<ArrowLeft className="w-5 h-5" />
+								</button>
+								<span className="text-sm font-medium text-gray-700">กลับ</span>
+							</div>
 							<MessageThread />
 						</motion.div>
 					) : (
@@ -50,7 +73,7 @@ export function ConversationView() {
 				</AnimatePresence>
 			</div>
 
-			{/* Right: Contact Panel */}
+			{/* Right: Contact Panel — hidden on mobile/tablet */}
 			<AnimatePresence>
 				{activeConversationId && (
 					<motion.div
@@ -58,7 +81,7 @@ export function ConversationView() {
 						animate={{ width: 288, opacity: 1 }}
 						exit={{ width: 0, opacity: 0 }}
 						transition={{ duration: 0.2, ease: 'easeInOut' }}
-						className="border-l border-border bg-white shrink-0 overflow-y-auto overflow-x-hidden"
+						className="border-l border-border bg-white shrink-0 overflow-y-auto overflow-x-hidden hidden xl:block"
 					>
 						<ContactPanel />
 					</motion.div>

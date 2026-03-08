@@ -3,8 +3,18 @@
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, CheckCheck, Loader2, Paperclip, Send, Smile } from 'lucide-react'
+import {
+	AlertCircle,
+	Check,
+	CheckCheck,
+	Loader2,
+	Paperclip,
+	RefreshCw,
+	Send,
+	Smile,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -72,7 +82,12 @@ export function MessageThread() {
 	)
 
 	// Fetch messages
-	const { data: messagesData, isLoading: messagesLoading } = trpc.message.list.useQuery(
+	const {
+		data: messagesData,
+		isLoading: messagesLoading,
+		error: messagesError,
+		refetch: refetchMessages,
+	} = trpc.message.list.useQuery(
 		{ conversationId: activeConversationId!, limit: 100 },
 		{ enabled: !!activeConversationId, refetchInterval: 30_000 },
 	)
@@ -100,14 +115,21 @@ export function MessageThread() {
 			utils.message.list.invalidate({ conversationId: activeConversationId! })
 			utils.conversation.list.invalidate()
 		},
+		onError: () => {
+			toast.error('ส่งข้อความไม่สำเร็จ กรุณาลองใหม่')
+		},
 	})
 
 	// Messages come newest-first from API, reverse for display
 	const messages = [...(messagesData?.items ?? [])].reverse()
+	const messageCount = messages.length
 
+	// Scroll to bottom when messages change
 	useEffect(() => {
-		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-	}, [])
+		if (messageCount > 0) {
+			messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+		}
+	}, [messageCount])
 
 	if (!activeConversationId) return null
 
@@ -161,6 +183,21 @@ export function MessageThread() {
 				{messagesLoading ? (
 					<div className="flex items-center justify-center py-12">
 						<Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+					</div>
+				) : messagesError ? (
+					<div className="flex flex-col items-center justify-center py-12 gap-3">
+						<AlertCircle className="w-8 h-8 text-destructive/60" />
+						<p className="text-sm text-destructive">โหลดข้อความไม่สำเร็จ</p>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => refetchMessages()}
+							className="gap-2"
+						>
+							<RefreshCw className="w-3.5 h-3.5" />
+							ลองใหม่
+						</Button>
 					</div>
 				) : messages.length === 0 ? (
 					<div className="flex items-center justify-center py-12">
