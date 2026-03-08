@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
+import { pushMessage } from '../libs/line'
 import { protectedProcedure, router } from '../trpc'
 import { emitNewMessage } from '../ws'
 
@@ -63,7 +64,12 @@ export const messageRouter = router({
 			// Verify conversation belongs to user's account
 			const conversation = await ctx.db.conversation.findFirst({
 				where: { id: input.conversationId, accountId: ctx.accountId },
-				select: { id: true },
+				select: {
+					id: true,
+					contactId: true,
+					inboxId: true,
+					inbox: { select: { channelType: true, channelConfig: true } },
+				},
 			})
 			if (!conversation) {
 				throw new TRPCError({ code: 'NOT_FOUND', message: 'Conversation not found' })
@@ -110,6 +116,30 @@ export const messageRouter = router({
 					fileName: a.fileName,
 				})),
 			})
+
+			// Deliver to LINE channel (fire-and-forget)
+			if (conversation.inbox.channelType === 'LINE') {
+				const config = conversation.inbox.channelConfig as Record<string, string> | null
+				const accessToken = config?.channelAccessToken
+				if (accessToken) {
+					const contactInbox = await ctx.db.contactInbox.findFirst({
+						where: { contactId: conversation.contactId, inboxId: conversation.inboxId },
+						select: { sourceId: true },
+					})
+					if (contactInbox?.sourceId) {
+						pushMessage(
+							contactInbox.sourceId,
+							[{ type: 'text', text: input.content }],
+							accessToken,
+						).catch((err) => {
+							console.error('[LINE] Failed to send:', err)
+							ctx.db.message
+								.update({ where: { id: message.id }, data: { status: 'FAILED' } })
+								.catch(() => {})
+						})
+					}
+				}
+			}
 
 			return message
 		}),
